@@ -173,6 +173,7 @@
   }
 
   .topbar-right {
+    --header-control-height: 1.95rem;
     display: flex;
     align-items: center;
     gap: 0.55rem;
@@ -201,10 +202,23 @@
   }
 
   .refresh-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
-  #refreshBtn {
-    white-space: nowrap;
+
+  .header-utility-btn {
+    width: var(--header-control-height);
+    min-width: var(--header-control-height);
+    height: var(--header-control-height);
+    min-height: var(--header-control-height);
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 8px;
+    font-size: 0.88rem;
     font-weight: 600;
+    line-height: 1;
+  }
+
+  #refreshBtn {
     background: linear-gradient(180deg, var(--surface-tint-1), var(--surface-tint-0)) var(--surface-2);
   }
 
@@ -666,7 +680,7 @@
     font-weight: 600;
     letter-spacing: 0.02em;
     padding: 0.42rem 0.72rem;
-    min-height: 1.95rem;
+    min-height: var(--header-control-height);
     border-radius: 6px;
     cursor: pointer;
   }
@@ -868,6 +882,7 @@
     }
 
     .topbar-right {
+      --header-control-height: 2.15rem;
       width: 100%;
       justify-content: space-between;
       gap: 0.5rem;
@@ -903,10 +918,8 @@
       min-height: 2.15rem;
     }
 
-    #refreshBtn {
-      min-height: 2.15rem;
-      padding: 0.45rem 0.7rem;
-      font-size: 0.7rem;
+    .header-utility-btn {
+      font-size: 0.82rem;
       flex-shrink: 0;
     }
 
@@ -1012,11 +1025,11 @@
     .brand-mark { width: 31px; height: 31px; padding: 2px; border-radius: 6px; }
     .topbar-left h1 { font-size: 0.82rem; }
     .topbar-left .subtitle { font-size: 0.65rem; }
-    .topbar-right { gap: 0.4rem; }
+    .topbar-right { --header-control-height: 2rem; gap: 0.4rem; }
     .header-controls-group { padding: 0.22rem; gap: 0.3rem; }
-    .view-toggle button { padding: 0.4rem 0.5rem; font-size: 0.64rem; min-height: 2rem; }
-    .refresh-controls select { max-width: 68px; font-size: 0.65rem; min-height: 2rem; }
-    #refreshBtn { min-height: 2rem; padding: 0.4rem 0.55rem; font-size: 0.66rem; }
+    .view-toggle button { padding: 0.4rem 0.5rem; font-size: 0.64rem; min-height: var(--header-control-height); }
+    .refresh-controls select { max-width: 68px; font-size: 0.65rem; min-height: var(--header-control-height); }
+    .header-utility-btn { font-size: 0.72rem; }
     .main { padding: 0.75rem; }
     .filters { padding: 0.55rem; gap: 0.45rem; }
     .filter-label { font-size: 0.6rem; }
@@ -1056,8 +1069,8 @@
         </select>
       </div>
     </div>
-    <button class="btn" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle color theme">☀ Light</button>
-    <button class="btn" onclick="refresh()" id="refreshBtn">↻ Refresh</button>
+    <button class="btn header-utility-btn" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle color theme" title="Toggle color theme">☾</button>
+    <button class="btn header-utility-btn" onclick="refresh()" id="refreshBtn" aria-label="Refresh runs" title="Refresh runs">↻</button>
   </div>
 </div>
 
@@ -1223,8 +1236,10 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', normalized);
   const btn = document.getElementById('themeToggle');
   if (btn) {
-    btn.textContent = normalized === 'light' ? '☾ Dark' : '☀ Light';
-    btn.setAttribute('aria-label', normalized === 'light' ? 'Switch to dark mode' : 'Switch to light mode');
+    btn.textContent = normalized === 'light' ? '☀' : '☾';
+    const nextModeLabel = normalized === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+    btn.setAttribute('aria-label', nextModeLabel);
+    btn.setAttribute('title', nextModeLabel);
   }
 }
 
@@ -1874,7 +1889,7 @@ function setRefreshInterval() {
 async function refresh() {
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
-  btn.textContent = '↻ ...';
+  btn.textContent = '↻';
   try {
     const [runsResp, agentsResp] = await Promise.all([fetchRuns(0, PAGE_SIZE), fetchAgents()]);
     runs = Array.isArray(runsResp) ? runsResp : (runsResp.items || []);
@@ -1901,7 +1916,7 @@ async function refresh() {
     }
   } finally {
     btn.disabled = false;
-    btn.textContent = '↻ Refresh';
+    btn.textContent = '↻';
   }
 }
 
