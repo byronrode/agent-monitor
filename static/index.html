@@ -46,9 +46,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem 2rem;
+    padding: 0.8rem 2rem 0.7rem;
     border-bottom: 1px solid var(--border);
-    background: var(--surface);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)) var(--surface);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -56,13 +56,30 @@
 
   .topbar-left {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
+    align-items: center;
+    gap: 0.75rem;
     min-width: 0;
   }
 
-  .topbar-left h1 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; }
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    padding: 4px;
+  }
+
+  .brand-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.28rem;
+    min-width: 0;
+  }
+
+  .topbar-left h1 { font-size: 1rem; font-weight: 650; letter-spacing: -0.01em; line-height: 1.05; }
 
   .subtitle-wrap {
     display: inline-flex;
@@ -84,19 +101,20 @@
   .topbar-right {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
-    flex-wrap: wrap;
+    gap: 0.55rem;
+    flex-wrap: nowrap;
     justify-content: flex-end;
+    margin-left: auto;
   }
 
   .header-controls-group {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    background: var(--surface-2);
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0)) var(--surface-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.3rem;
+    border-radius: 10px;
+    padding: 0.28rem;
   }
 
   .refresh-controls {
@@ -109,7 +127,12 @@
   }
 
   .refresh-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
-  #refreshBtn { white-space: nowrap; }
+  #refreshBtn {
+    white-space: nowrap;
+    border-radius: 8px;
+    font-weight: 600;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) var(--surface-2);
+  }
 
   select, button.btn {
     background: var(--surface-2);
@@ -551,29 +574,34 @@
   /* View toggle */
   .view-toggle {
     display: flex;
-    gap: 0;
+    gap: 0.25rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 0.15rem;
     flex-shrink: 0;
   }
 
   .view-toggle button {
-    background: var(--surface);
-    border: none;
-    border-right: 1px solid var(--border);
+    background: transparent;
+    border: 1px solid transparent;
     color: var(--text-3);
     font-family: var(--mono);
-    font-size: 0.72rem;
-    font-weight: 500;
-    padding: 0.45rem 0.8rem;
-    min-height: 2rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.42rem 0.72rem;
+    min-height: 1.95rem;
+    border-radius: 6px;
     cursor: pointer;
   }
 
-  .view-toggle button:last-child { border-right: none; }
-  .view-toggle button.active { background: var(--surface-3); color: var(--text); }
-  .view-toggle button:hover { background: var(--surface-3); }
+  .view-toggle button.active {
+    background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.12));
+    border-color: rgba(59,130,246,0.42);
+    color: #dbeafe;
+  }
+  .view-toggle button:hover { background: var(--surface-3); color: var(--text-2); }
 
   /* Lanes view */
   .lanes {
@@ -629,24 +657,32 @@
 
   .page-nav {
     display: flex;
-    gap: 0.5rem;
-    padding: 0.7rem 2rem 0;
+    gap: 0.25rem;
+    padding: 0.48rem 2rem 0.5rem;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
   }
 
   .page-link {
     background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text-2);
-    border-radius: 7px;
-    padding: 0.45rem 0.8rem;
+    border: 1px solid transparent;
+    color: var(--text-3);
+    border-radius: 8px;
+    padding: 0.45rem 0.82rem;
     font-family: var(--mono);
-    font-size: 0.75rem;
+    font-size: 0.73rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     cursor: pointer;
+    position: relative;
   }
 
-  .page-link.active { color: var(--text); border-color: var(--blue); background: var(--blue-bg); }
+  .page-link:hover { color: var(--text-2); background: var(--surface-2); }
+  .page-link.active {
+    color: var(--text);
+    background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.08));
+    border-color: rgba(59,130,246,0.38);
+  }
 
   .daily-page { max-width: 1200px; margin: 0 auto; }
   .daily-table-wrap {
@@ -672,7 +708,7 @@
 
   /* ── Mobile ── */
   @media (max-width: 767px) {
-    .page-nav { padding: 0.55rem 1rem 0; overflow-x: auto; }
+    .page-nav { padding: 0.45rem 1rem 0.45rem; overflow-x: auto; }
     .page-link { white-space: nowrap; }
 
     /* Stack layout vertically */
@@ -682,11 +718,23 @@
     .topbar {
       flex-direction: column;
       align-items: stretch;
-      padding: 0.75rem 1rem;
-      gap: 0.7rem;
+      padding: 0.68rem 1rem 0.62rem;
+      gap: 0.65rem;
     }
 
-    .topbar-left h1 { font-size: 0.95rem; }
+    .topbar-left {
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    .brand-mark {
+      width: 24px;
+      height: 24px;
+      padding: 3px;
+      border-radius: 7px;
+    }
+
+    .topbar-left h1 { font-size: 0.92rem; }
     .subtitle-wrap { gap: 0.4rem; }
     .topbar-left .subtitle {
       max-width: 100%;
@@ -822,7 +870,8 @@
   }
 
   @media (max-width: 400px) {
-    .topbar { padding: 0.5rem 0.75rem; gap: 0.55rem; }
+    .topbar { padding: 0.48rem 0.75rem; gap: 0.5rem; }
+    .brand-mark { width: 21px; height: 21px; padding: 2px; border-radius: 6px; }
     .topbar-left h1 { font-size: 0.82rem; }
     .topbar-left .subtitle { font-size: 0.65rem; }
     .topbar-right { gap: 0.4rem; }
@@ -844,10 +893,13 @@
 
 <div class="topbar">
   <div class="topbar-left">
-    <h1>Agent Monitor</h1>
-    <div class="subtitle-wrap">
-      <div class="live-dot" id="liveDot"></div>
-      <span class="subtitle" id="lastUpdate"></span>
+    <img class="brand-mark" src="logo.svg" alt="Agent Monitor logo" />
+    <div class="brand-copy">
+      <h1>Agent Monitor</h1>
+      <div class="subtitle-wrap">
+        <div class="live-dot" id="liveDot"></div>
+        <span class="subtitle" id="lastUpdate"></span>
+      </div>
     </div>
   </div>
   <div class="topbar-right">
