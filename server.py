@@ -136,6 +136,7 @@ def init_db():
                 input_tokens INTEGER,
                 output_tokens INTEGER,
                 total_tokens INTEGER,
+                last_heartbeat_at INTEGER,
                 created_at INTEGER,
                 updated_at INTEGER
             )
@@ -151,6 +152,8 @@ def init_db():
             conn.execute("ALTER TABLE run_history ADD COLUMN output_tokens INTEGER")
         if "total_tokens" not in cols:
             conn.execute("ALTER TABLE run_history ADD COLUMN total_tokens INTEGER")
+        if "last_heartbeat_at" not in cols:
+            conn.execute("ALTER TABLE run_history ADD COLUMN last_heartbeat_at INTEGER")
 
 
 def as_int(value):
@@ -308,6 +311,7 @@ def prune_old_runs(conn: sqlite3.Connection):
 
 
 def sync_runs_to_db():
+    init_db()
     runs = load_current_runs_file()
     if not runs:
         return
@@ -335,9 +339,9 @@ def sync_runs_to_db():
                 INSERT INTO run_history (
                     run_id, label, agent_id, model, status, started_at, ended_at,
                     runtime_ms, timeout_seconds, task, session_key, outcome_status,
-                    outcome_json, raw_json, input_tokens, output_tokens, total_tokens,
+                    outcome_json, raw_json, input_tokens, output_tokens, total_tokens, last_heartbeat_at,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(run_id) DO UPDATE SET
                     label=excluded.label,
                     agent_id=excluded.agent_id,
@@ -355,6 +359,7 @@ def sync_runs_to_db():
                     input_tokens=excluded.input_tokens,
                     output_tokens=excluded.output_tokens,
                     total_tokens=excluded.total_tokens,
+                    last_heartbeat_at=excluded.last_heartbeat_at,
                     updated_at=excluded.updated_at
                 """,
                 (
@@ -375,6 +380,7 @@ def sync_runs_to_db():
                     input_tokens,
                     output_tokens,
                     total_tokens,
+                    as_int(run.get("lastHeartbeatAt") or run.get("last_heartbeat_at") or run.get("heartbeatAt")),
                     run.get("createdAt", started or now_ms),
                     now_ms,
                 ),
@@ -405,7 +411,7 @@ def query_runs(limit=200, offset=0, agent_id=None, status=None):
             f"""
             SELECT run_id, label, agent_id, model, status, started_at, ended_at,
                    runtime_ms, timeout_seconds, task, session_key, outcome_status,
-                   input_tokens, output_tokens, total_tokens
+                   input_tokens, output_tokens, total_tokens, last_heartbeat_at
             FROM run_history
             {where_sql}
             ORDER BY started_at DESC
@@ -437,6 +443,7 @@ def query_runs(limit=200, offset=0, agent_id=None, status=None):
                     "inputTokens": row["input_tokens"],
                     "outputTokens": row["output_tokens"],
                     "totalTokens": row["total_tokens"],
+                    "lastHeartbeatAt": row["last_heartbeat_at"],
                     "outcome": {"status": row["outcome_status"] or "unknown"},
                 }
             )
@@ -742,27 +749,70 @@ def get_run_detail(run_id):
                     text = ""
                     tool_calls = []
 
+                    def to_safe_text(value, max_len=4000):
+                        if value is None:
+                            return ""
+                        if isinstance(value, str):
+                            raw = value
+                        else:
+                            try:
+                                raw = json.dumps(value, ensure_ascii=False, default=str)
+                            except Exception:
+                                raw = str(value)
+                        safe = sanitize(raw)
+                        return safe[:max_len]
+
+                    def add_tool_event(name, args_obj=None, result_obj=None):
+                        args_text = to_safe_text(args_obj)
+                        result_text = to_safe_text(result_obj)
+                        tool_calls.append(
+                            {
+                                "name": (name or "tool").strip() or "tool",
+                                "args": args_text,
+                                "argsPreview": (args_text[:240] + "…") if len(args_text) > 240 else args_text,
+                                "result": result_text,
+                                "resultPreview": (result_text[:240] + "…") if len(result_text) > 240 else result_text,
+                            }
+                        )
+
                     if isinstance(content, list):
                         for c in content:
-                            if isinstance(c, dict):
-                                if c.get("type") == "text" and c.get("text", "").strip():
-                                    text += c["text"] + "\n"
-                                elif c.get("type") == "toolCall":
-                                    tool_calls.append(
-                                        {
-                                            "name": c.get("name", ""),
-                                            "args_preview": str(c.get("arguments", {}))[:200],
-                                        }
-                                    )
+                            if not isinstance(c, dict):
+                                continue
+                            ctype = c.get("type")
+                            if ctype == "text" and c.get("text", "").strip():
+                                text += c["text"] + "\n"
+                            elif ctype in ("toolCall", "tool_call", "tool-use"):
+                                add_tool_event(
+                                    c.get("name") or c.get("toolName") or c.get("tool"),
+                                    c.get("arguments", c.get("args", c.get("input"))),
+                                    c.get("result", c.get("output")),
+                                )
+                            elif ctype in ("toolResult", "tool_result"):
+                                add_tool_event(
+                                    c.get("name") or c.get("toolName") or c.get("tool") or "tool_result",
+                                    c.get("arguments", c.get("args", c.get("input"))),
+                                    c.get("result", c.get("output", c.get("content"))),
+                                )
                     elif isinstance(content, str):
                         text = content
+
+                    if isinstance(msg.get("toolCalls"), list):
+                        for tc in msg.get("toolCalls"):
+                            if not isinstance(tc, dict):
+                                continue
+                            add_tool_event(
+                                tc.get("name") or tc.get("toolName") or tc.get("tool"),
+                                tc.get("arguments", tc.get("args", tc.get("input"))),
+                                tc.get("result", tc.get("output")),
+                            )
 
                     if text.strip() or tool_calls:
                         messages.append(
                             {
                                 "role": role,
                                 "text": sanitize(text.strip()[:2000]),
-                                "toolCalls": tool_calls[:5],
+                                "toolCalls": tool_calls[:20],
                                 "timestamp": msg.get("timestamp", entry.get("timestamp")),
                             }
                         )
@@ -790,6 +840,7 @@ def get_run_detail(run_id):
         "inputTokens": row["input_tokens"],
         "outputTokens": row["output_tokens"],
         "totalTokens": row["total_tokens"],
+        "lastHeartbeatAt": row["last_heartbeat_at"],
         "outcome": outcome,
         "messages": messages,
     }

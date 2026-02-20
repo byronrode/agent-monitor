@@ -410,7 +410,9 @@
   .badge.done { background: var(--blue-bg); color: var(--blue); }
   .badge.failed { background: var(--red-bg); color: var(--red); }
   .badge.timeout { background: var(--amber-bg); color: var(--amber); }
-  .badge.stale { background: var(--badge-stale-bg); color: var(--badge-stale-text); }
+  .badge.quiet { background: var(--amber-bg); color: var(--amber); }
+  .badge.stalled { background: var(--badge-stale-bg); color: var(--badge-stale-text); }
+  .badge.dead { background: var(--red-bg); color: var(--red); }
   .badge.unknown { background: var(--surface-3); color: var(--text-3); }
 
   .run-status .time {
@@ -540,15 +542,21 @@
   }
 
   .tool-call {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--amber);
-    background: var(--amber-bg);
-    padding: 0.2rem 0.5rem;
-    border-radius: 3px;
-    display: inline-block;
-    margin: 0.15rem 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    padding: 0.55rem;
+    margin: 0.45rem 0;
   }
+  .tool-call-head { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.4rem; }
+  .tool-badge { font-family: var(--mono); font-size: 0.68rem; color: var(--amber); background: var(--amber-bg); padding: 0.15rem 0.45rem; border-radius: 4px; }
+  .tool-block-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-bottom:0.15rem; }
+  .tool-block-body { font-family: var(--mono); font-size: 0.72rem; white-space: pre-wrap; word-break: break-word; color: var(--text-2); }
+  .tool-expand { margin-top:0.35rem; font-size:0.66rem; }
+
+  .watchdog { margin-top:0.45rem; font-size:0.7rem; border-radius:6px; padding:0.35rem 0.45rem; border:1px solid var(--border); }
+  .watchdog.ping { background: var(--amber-bg); color: var(--amber); }
+  .watchdog.action { background: var(--red-bg); color: var(--red); }
 
   .empty {
     text-align: center;
@@ -1184,10 +1192,10 @@
         <select id="statusFilter">
           <option value="all">all statuses</option>
           <option value="running">running</option>
-          <option value="stale">stale</option>
+          <option value="quiet">quiet</option>
+          <option value="stalled">stalled</option>
+          <option value="dead">dead</option>
           <option value="done">done</option>
-          <option value="failed">failed</option>
-          <option value="timeout">timeout</option>
         </select>
       </div>
       <div class="filter-field">
@@ -1276,7 +1284,10 @@ let activeSheetRunId = null;
 let mobileFiltersCollapsed = false;
 const detailCache = {};
 const PAGE_SIZE = 200;
-const STALE_RUN_THRESHOLD_MS = 15 * 60 * 1000;
+const QUIET_THRESHOLD_MS = 5 * 60 * 1000;
+const STALLED_THRESHOLD_MS = 15 * 60 * 1000;
+const PING_SUGGEST_THRESHOLD_MS = 10 * 60 * 1000;
+const WATCHDOG_ACTION_THRESHOLD_MS = 20 * 60 * 1000;
 const STORAGE_KEY = 'agent-monitor-ui-v1';
 const THEME_STORAGE_KEY = 'agent-monitor-theme';
 const MOBILE_FILTERS_PREF_KEY = 'agent-monitor-mobile-filters-collapsed';
@@ -1356,6 +1367,22 @@ function cssVar(name, fallback) {
 // Helpers
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+function shortPayload(text, max = 260) {
+  const s = String(text ?? '');
+  if (!s) return '';
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+function toggleToolPayload(btn, id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const expanded = el.getAttribute('data-expanded') === '1';
+  el.setAttribute('data-expanded', expanded ? '0' : '1');
+  btn.textContent = expanded ? 'expand' : 'collapse';
+  const full = el.getAttribute('data-full') || '';
+  el.textContent = expanded ? shortPayload(full) : full;
+}
+
 function formatMs(ms) {
   if (!ms || ms < 0) return '-';
   const s = Math.floor(ms / 1000);
@@ -1382,15 +1409,41 @@ function taskFirstLine(task) {
   return (task||'').slice(0, 120);
 }
 
-function isStaleRun(run) {
-  if (!run || run.status !== 'running' || run.endedAt) return false;
-  const lastTs = run.endedAt || run.updatedAt || run.lastHeartbeatAt || run.startedAt;
-  if (!lastTs) return false;
-  return (Date.now() - lastTs) > STALE_RUN_THRESHOLD_MS;
+function getLastActivityTs(run) {
+  return run?.lastHeartbeatAt || run?.updatedAt || run?.startedAt || null;
+}
+
+function livenessStatus(run) {
+  if (!run) return 'unknown';
+  if (run.endedAt) return run.status === 'done' ? 'done' : 'dead';
+  if (run.status === 'failed' || run.status === 'timeout') return 'dead';
+  if (run.status !== 'running') return run.status || 'unknown';
+  const lastTs = getLastActivityTs(run);
+  if (!lastTs) return 'running';
+  const age = Date.now() - lastTs;
+  if (age < QUIET_THRESHOLD_MS) return 'running';
+  if (age < STALLED_THRESHOLD_MS) return 'quiet';
+  return 'stalled';
+}
+
+function isActiveRun(run) {
+  const st = livenessStatus(run);
+  return st === 'running' || st === 'quiet';
 }
 
 function effectiveStatus(run) {
-  return isStaleRun(run) ? 'stale' : (run.status || 'unknown');
+  return livenessStatus(run);
+}
+
+function watchdogHint(run) {
+  const st = livenessStatus(run);
+  if (st !== 'quiet' && st !== 'stalled') return '';
+  const lastTs = getLastActivityTs(run);
+  if (!lastTs) return '';
+  const age = Date.now() - lastTs;
+  if (st === 'quiet' && age >= PING_SUGGEST_THRESHOLD_MS) return 'Ping suggested: no heartbeat for ~10m.';
+  if (st === 'stalled' && age >= WATCHDOG_ACTION_THRESHOLD_MS) return 'Recommended action: steer or restart this run (or kill if unresponsive)';
+  return '';
 }
 
 // API
@@ -1544,18 +1597,18 @@ function renderStats() {
 
   const filtered = getFilteredRuns();
   const running = filtered.filter(r => effectiveStatus(r) === 'running').length;
-  const stale = filtered.filter(r => effectiveStatus(r) === 'stale').length;
+  const quiet = filtered.filter(r => effectiveStatus(r) === 'quiet').length;
+  const stalled = filtered.filter(r => effectiveStatus(r) === 'stalled').length;
+  const dead = filtered.filter(r => effectiveStatus(r) === 'dead').length;
   const done = filtered.filter(r => effectiveStatus(r) === 'done').length;
-  const failed = filtered.filter(r => effectiveStatus(r) === 'failed').length;
-  const timedout = filtered.filter(r => effectiveStatus(r) === 'timeout').length;
   const totalRuntime = filtered.reduce((s, r) => s + (r.runtimeMs || 0), 0);
 
   document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="label">Running</div><div class="value" style="color:var(--green)">${running}</div><div class="detail">${stale} stale</div></div>
-    <div class="stat"><div class="label">Completed</div><div class="value" style="color:var(--blue)">${done}</div></div>
-    <div class="stat"><div class="label">Failed</div><div class="value" style="color:var(--red)">${failed}</div></div>
-    <div class="stat"><div class="label">Timed Out</div><div class="value" style="color:var(--amber)">${timedout}</div></div>
-    <div class="stat"><div class="label">Total Runtime</div><div class="value">${formatMs(totalRuntime)}</div></div>
+    <div class="stat"><div class="label">Running</div><div class="value" style="color:var(--green)">${running}</div><div class="detail">active now</div></div>
+    <div class="stat"><div class="label">Quiet</div><div class="value" style="color:var(--amber)">${quiet}</div><div class="detail">5-15m no heartbeat</div></div>
+    <div class="stat"><div class="label">Stalled</div><div class="value" style="color:var(--badge-stale-text)">${stalled}</div><div class="detail">>15m no heartbeat</div></div>
+    <div class="stat"><div class="label">Dead</div><div class="value" style="color:var(--red)">${dead}</div><div class="detail">exited / failed</div></div>
+    <div class="stat"><div class="label">Done / Runtime</div><div class="value" style="font-size:1.2rem">${done} • ${formatMs(totalRuntime)}</div></div>
   `;
   renderTokenDashboard(filtered);
 }
@@ -1668,7 +1721,7 @@ function renderAgentSidebar() {
   const activeCounts = {};
   runs.forEach(r => {
     counts[r.agentId] = (counts[r.agentId] || 0) + 1;
-    if (effectiveStatus(r) === 'running') activeCounts[r.agentId] = (activeCounts[r.agentId] || 0) + 1;
+    if (isActiveRun(r)) activeCounts[r.agentId] = (activeCounts[r.agentId] || 0) + 1;
   });
 
   const agentColors = {
@@ -1712,6 +1765,7 @@ function renderRunCard(r) {
   const isExpanded = expandedRuns[r.runId];
   const modelShort = (r.model || '').split('/').pop();
   const status = effectiveStatus(r);
+  const hint = watchdogHint(r);
 
   return `
     <div class="run-card" id="run-${r.runId}">
@@ -1736,6 +1790,7 @@ function renderRunCard(r) {
             <span class="chip">total ${fmtNum(r.totalTokens)}</span>
             <span class="chip">start ${esc(formatTs(r.startedAt))}</span>
           </div>
+          ${hint ? `<div class="watchdog ${status === 'stalled' ? 'action' : 'ping'}">${esc(hint)}</div>` : ''}
         </div>
         <div class="run-meta">
           <span>${timeAgo(r.startedAt)}</span>
@@ -1750,8 +1805,8 @@ function renderRunCard(r) {
 
 function renderListView() {
   const filtered = getFilteredRuns();
-  const running = filtered.filter(r => effectiveStatus(r) === 'running');
-  const completed = filtered.filter(r => effectiveStatus(r) !== 'running');
+  const running = filtered.filter(r => isActiveRun(r));
+  const completed = filtered.filter(r => !isActiveRun(r));
 
   let html = '';
 
@@ -1853,6 +1908,7 @@ function buildRunDetailHtml(detail) {
 started: ${esc(formatTs(detail.startedAt))}
 ended: ${esc(formatTs(detail.endedAt))}
 duration: ${esc(formatMs(detail.runtimeMs))}
+last heartbeat: ${esc(formatTs(detail.lastHeartbeatAt))}
 input tokens: ${esc(String(detail.inputTokens ?? '-'))}
 output tokens: ${esc(String(detail.outputTokens ?? '-'))}
 total tokens: ${esc(String(detail.totalTokens ?? '-'))}
@@ -1861,6 +1917,11 @@ agent: ${esc(detail.agentId || '-')}
 run id: ${esc(detail.runId || '-')}
 session: ${esc(detail.sessionKey || '-')}</div>
   </div>`;
+
+  const hint = watchdogHint(detail);
+  if (hint) {
+    html += `<div class="detail-section"><div class="watchdog ${status === 'stalled' ? 'action' : 'ping'}">${esc(hint)}${status === 'stalled' ? ' — APIs for direct actions are not exposed in this UI build yet.' : ''}</div></div>`;
+  }
 
   html += `<div class="detail-section">
     <div class="detail-label">Prompt / task</div>
@@ -1880,7 +1941,23 @@ session: ${esc(detail.sessionKey || '-')}</div>
         <div class="msg-role">${msg.role}</div>`;
       if (msg.text) html += `<div class="msg-text">${esc(msg.text)}</div>`;
       if (msg.toolCalls && msg.toolCalls.length > 0) {
-        msg.toolCalls.forEach(tc => { html += `<span class="tool-call">${esc(tc.name)}</span> `; });
+        msg.toolCalls.forEach((tc, idx) => {
+          const args = tc.args || '';
+          const result = tc.result || '';
+          const argsId = `tool-${detail.runId}-${msg.timestamp || 'na'}-${idx}-args`;
+          const resultId = `tool-${detail.runId}-${msg.timestamp || 'na'}-${idx}-result`;
+          const argsPreview = args ? shortPayload(args) : '(no args captured)';
+          const resultPreview = result ? shortPayload(result) : '(no result captured)';
+          html += `<div class="tool-call">
+            <div class="tool-call-head"><span class="tool-badge">${esc(tc.name || 'tool')}</span></div>
+            <div class="tool-block-label">Arguments</div>
+            <div class="tool-block-body" id="${esc(argsId)}" data-full="${esc(args)}" data-expanded="0">${esc(argsPreview)}</div>
+            ${args && args.length > 260 ? `<button class="btn tool-expand" onclick="toggleToolPayload(this, '${esc(argsId)}')">expand</button>` : ''}
+            <div class="tool-block-label" style="margin-top:0.4rem;">Result</div>
+            <div class="tool-block-body" id="${esc(resultId)}" data-full="${esc(result)}" data-expanded="0">${esc(resultPreview)}</div>
+            ${result && result.length > 260 ? `<button class="btn tool-expand" onclick="toggleToolPayload(this, '${esc(resultId)}')">expand</button>` : ''}
+          </div>`;
+        });
       }
       html += '</div>';
     });
