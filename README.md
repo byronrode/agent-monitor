@@ -34,6 +34,51 @@ OPENCLAW_DIR=/path/to/.openclaw PORT=9090 python3 server.py
 
 Then open `http://localhost:8787` in your browser.
 
+## Run as a systemd User Service (Daemon)
+
+Use this setup to keep Agent Monitor running in the background.
+
+- **Service name:** `agent-monitor.service`
+- **Service file:** `~/.config/systemd/user/agent-monitor.service`
+
+Example service definition (key settings):
+
+```ini
+[Service]
+ExecStart=/usr/bin/env python3 /home/byronrode/work/agent-monitor/server.py
+Restart=always
+Environment=RUN_HISTORY_DB=/home/byronrode/.openclaw/subagents/run_history.db
+Environment=RUN_HISTORY_RETENTION_DAYS=90
+```
+
+Enable and start:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now agent-monitor.service
+```
+
+Operations:
+
+```bash
+# status
+systemctl --user status agent-monitor.service
+
+# restart
+systemctl --user restart agent-monitor.service
+
+# logs
+journalctl --user -u agent-monitor.service -f
+```
+
+Access URL:
+- `http://raspberrypi.cloudforest-pineapplefish.ts.net:8787`
+- Use **http** on port `8787` (not https).
+
+Behavior notes:
+- With user lingering enabled (`loginctl enable-linger byronrode`), the service auto-starts on boot.
+- `Restart=always` ensures it auto-restarts after crashes.
+
 ## Migration / Run Notes
 
 No manual migration is required.
