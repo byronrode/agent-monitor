@@ -451,6 +451,103 @@
   .lane-card .lc-label { font-weight: 600; font-size: 0.8rem; }
   .lane-card .lc-task { font-size: 0.75rem; color: var(--text-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .lane-card .lc-bottom { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem; font-family: var(--mono); font-size: 0.65rem; color: var(--text-3); }
+  /* ── Mobile ── */
+  @media (max-width: 767px) {
+    /* Stack layout vertically */
+    .layout { flex-direction: column; min-height: auto; }
+
+    /* Topbar: compact */
+    .topbar { padding: 0.75rem 1rem; }
+    .topbar-left h1 { font-size: 0.9rem; }
+    .topbar-left .subtitle { font-size: 0.7rem; }
+    .topbar-right { gap: 0.5rem; }
+    .topbar-right .btn { padding: 0.3rem 0.6rem; font-size: 0.7rem; }
+    .topbar-right select { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
+
+    /* Sidebar → horizontal scrollable pill bar */
+    .sidebar {
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .sidebar-title { display: none; }
+    #agentList {
+      display: flex;
+      flex-wrap: nowrap;
+      padding: 0.5rem 0.75rem;
+      gap: 0.25rem;
+    }
+    .sidebar .agent-item {
+      flex-shrink: 0;
+      white-space: nowrap;
+      padding: 0.3rem 0.65rem;
+      font-size: 0.75rem;
+      border-radius: 6px;
+      border-right: none !important;
+    }
+    .sidebar .agent-item.active {
+      background: var(--surface-3);
+      border-right: none !important;
+      border-bottom: none;
+    }
+
+    /* Main content */
+    .main { padding: 1rem; }
+
+    /* Stats: 2×2 + 1 */
+    .stats {
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .stat { padding: 0.75rem; }
+    .stat .label { font-size: 0.6rem; }
+    .stat .value { font-size: 1.4rem; }
+
+    /* Run cards: stack the 3-col grid */
+    .run-card-header {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+      padding: 0.85rem 1rem;
+    }
+    .run-status {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .run-meta {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .run-info .title-row { flex-wrap: wrap; gap: 0.35rem; }
+
+    /* Lanes: stack vertically */
+    .lanes { flex-direction: column; }
+    .lane { min-width: 100%; max-width: 100%; }
+
+    /* Detail panels */
+    .run-detail { padding: 0.85rem; }
+    .detail-prompt { font-size: 0.7rem; max-height: 250px; }
+  }
+
+  @media (max-width: 400px) {
+    .topbar { padding: 0.5rem 0.75rem; }
+    .topbar-left h1 { font-size: 0.8rem; }
+    .view-toggle button { padding: 0.3rem 0.5rem; font-size: 0.65rem; }
+    .main { padding: 0.75rem; }
+    .stats { gap: 0.35rem; }
+    .stat { padding: 0.5rem; }
+    .stat .value { font-size: 1.15rem; }
+    .run-card-header { padding: 0.7rem; }
+  }
 </style>
 </head>
 <body>
@@ -496,6 +593,8 @@ let activeAgent = null; // null = all
 let currentView = 'list';
 let refreshTimer = null;
 let expandedRuns = {};
+let runsTotal = 0;
+const PAGE_SIZE = 200;
 
 // Helpers
 const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -527,8 +626,9 @@ function taskFirstLine(task) {
 }
 
 // API
-async function fetchRuns() {
-  const resp = await fetch('/api/runs');
+async function fetchRuns(offset = 0, limit = PAGE_SIZE) {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  const resp = await fetch(`/api/runs?${params.toString()}`);
   return resp.json();
 }
 
@@ -657,6 +757,12 @@ function renderListView() {
 
   if (filtered.length === 0) {
     html = '<div class="empty">No agent runs found</div>';
+  }
+
+  if (!activeAgent && runs.length < runsTotal) {
+    html += `<div style="display:flex;justify-content:center;margin:1rem 0 2rem">
+      <button class="btn" onclick="loadMoreHistory()">Load older runs (${runs.length}/${runsTotal})</button>
+    </div>`;
   }
 
   document.getElementById('content').innerHTML = html;
@@ -817,14 +923,31 @@ async function refresh() {
   btn.disabled = true;
   btn.textContent = '↻ ...';
   try {
-    [runs, agents] = await Promise.all([fetchRuns(), fetchAgents()]);
-    document.getElementById('lastUpdate').textContent = 'updated ' + new Date().toLocaleTimeString();
+    const [runsResp, agentsResp] = await Promise.all([fetchRuns(0, PAGE_SIZE), fetchAgents()]);
+    runs = Array.isArray(runsResp) ? runsResp : (runsResp.items || []);
+    runsTotal = Array.isArray(runsResp) ? runs.length : (runsResp.total || runs.length);
+    agents = agentsResp;
+    document.getElementById('lastUpdate').textContent = `updated ${new Date().toLocaleTimeString()} • showing ${runs.length}/${runsTotal}`;
     render();
   } catch(e) {
     console.error('Refresh failed:', e);
   } finally {
     btn.disabled = false;
     btn.textContent = '↻ Refresh';
+  }
+}
+
+async function loadMoreHistory() {
+  try {
+    const resp = await fetchRuns(runs.length, PAGE_SIZE);
+    const more = Array.isArray(resp) ? [] : (resp.items || []);
+    const existing = new Set(runs.map(r => r.runId));
+    more.forEach(r => { if (!existing.has(r.runId)) runs.push(r); });
+    runsTotal = Array.isArray(resp) ? runs.length : (resp.total || runsTotal);
+    document.getElementById('lastUpdate').textContent = `updated ${new Date().toLocaleTimeString()} • showing ${runs.length}/${runsTotal}`;
+    render();
+  } catch (e) {
+    console.error('Load more failed:', e);
   }
 }
 
