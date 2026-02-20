@@ -302,6 +302,7 @@
   .badge.done { background: var(--blue-bg); color: var(--blue); }
   .badge.failed { background: var(--red-bg); color: var(--red); }
   .badge.timeout { background: var(--amber-bg); color: var(--amber); }
+  .badge.stale { background: rgba(244,63,94,0.12); color: #fb7185; }
   .badge.unknown { background: var(--surface-3); color: var(--text-3); }
 
   .run-status .time {
@@ -663,6 +664,64 @@
     background: var(--surface);
   }
 
+  .detail-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 180;
+  }
+
+  .detail-sheet {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(680px, 92vw);
+    height: 100vh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    transform: translateX(100%);
+    transition: transform 0.24s ease;
+    z-index: 190;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -14px 0 36px rgba(0,0,0,0.45);
+  }
+
+  .detail-sheet.open { transform: translateX(0); }
+  .detail-sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+
+  .detail-sheet-header {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: var(--surface-2);
+  }
+
+  .detail-sheet-title { font-weight: 600; font-size: 0.92rem; }
+
+  .detail-sheet-close {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    border-radius: 8px;
+    width: 2rem;
+    height: 2rem;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .detail-sheet-body {
+    overflow-y: auto;
+    padding: 1rem;
+  }
+
   .page-link {
     background: transparent;
     border: 1px solid transparent;
@@ -856,6 +915,19 @@
     .lanes { flex-direction: column; }
     .lane { min-width: 100%; max-width: 100%; }
 
+    .detail-sheet {
+      top: auto;
+      bottom: 0;
+      right: 0;
+      left: 0;
+      width: 100%;
+      height: min(82vh, 760px);
+      border-left: none;
+      border-top: 1px solid var(--border);
+      transform: translateY(100%);
+    }
+    .detail-sheet.open { transform: translateY(0); }
+
     /* Detail panels */
     .run-detail { padding: 0.85rem; }
     .detail-prompt { font-size: 0.7rem; max-height: 250px; }
@@ -937,6 +1009,7 @@
         <select id="statusFilter">
           <option value="all">all statuses</option>
           <option value="running">running</option>
+          <option value="stale">stale</option>
           <option value="done">done</option>
           <option value="failed">failed</option>
           <option value="timeout">timeout</option>
@@ -998,6 +1071,15 @@
 </div>
 </div>
 
+<div id="detailSheetBackdrop" class="detail-sheet-backdrop" onclick="closeDetailSheet()"></div>
+<aside id="detailSheet" class="detail-sheet" aria-hidden="true">
+  <div class="detail-sheet-header">
+    <div class="detail-sheet-title" id="detailSheetTitle">Run details</div>
+    <button class="detail-sheet-close" onclick="closeDetailSheet()" aria-label="Close run details">✕</button>
+  </div>
+  <div id="detailSheetBody" class="detail-sheet-body"></div>
+</aside>
+
 <script>
 let runs = [];
 let agents = [];
@@ -1015,7 +1097,10 @@ let dailyWindowDays = 30;
 let dailyStats = null;
 let reportAgentFilter = "all";
 let reportStatusFilter = "all";
+let activeSheetRunId = null;
+const detailCache = {};
 const PAGE_SIZE = 200;
+const STALE_RUN_THRESHOLD_MS = 15 * 60 * 1000;
 const STORAGE_KEY = 'agent-monitor-ui-v1';
 
 function detectBasePath() {
@@ -1076,6 +1161,17 @@ function taskFirstLine(task) {
     if (clean && clean.length > 5 && !clean.startsWith('Read ') && !clean.startsWith('**READ')) return clean;
   }
   return (task||'').slice(0, 120);
+}
+
+function isStaleRun(run) {
+  if (!run || run.status !== 'running' || run.endedAt) return false;
+  const lastTs = run.endedAt || run.updatedAt || run.lastHeartbeatAt || run.startedAt;
+  if (!lastTs) return false;
+  return (Date.now() - lastTs) > STALE_RUN_THRESHOLD_MS;
+}
+
+function effectiveStatus(run) {
+  return isStaleRun(run) ? 'stale' : (run.status || 'unknown');
 }
 
 // API
@@ -1149,7 +1245,7 @@ function saveState() {
 
 function getFilteredRuns() {
   let filtered = activeAgent ? runs.filter(r => r.agentId === activeAgent) : [...runs];
-  if (statusFilter !== 'all') filtered = filtered.filter(r => r.status === statusFilter);
+  if (statusFilter !== 'all') filtered = filtered.filter(r => effectiveStatus(r) === statusFilter);
   if (timeWindowHours > 0) {
     const cutoff = Date.now() - (timeWindowHours * 3600 * 1000);
     filtered = filtered.filter(r => !r.startedAt || r.startedAt >= cutoff);
@@ -1192,14 +1288,15 @@ function renderTokenDashboard(filtered) {
 function renderStats() {
 
   const filtered = getFilteredRuns();
-  const running = filtered.filter(r => r.status === 'running').length;
-  const done = filtered.filter(r => r.status === 'done').length;
-  const failed = filtered.filter(r => r.status === 'failed').length;
-  const timedout = filtered.filter(r => r.status === 'timeout').length;
+  const running = filtered.filter(r => effectiveStatus(r) === 'running').length;
+  const stale = filtered.filter(r => effectiveStatus(r) === 'stale').length;
+  const done = filtered.filter(r => effectiveStatus(r) === 'done').length;
+  const failed = filtered.filter(r => effectiveStatus(r) === 'failed').length;
+  const timedout = filtered.filter(r => effectiveStatus(r) === 'timeout').length;
   const totalRuntime = filtered.reduce((s, r) => s + (r.runtimeMs || 0), 0);
 
   document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="label">Running</div><div class="value" style="color:var(--green)">${running}</div></div>
+    <div class="stat"><div class="label">Running</div><div class="value" style="color:var(--green)">${running}</div><div class="detail">${stale} stale</div></div>
     <div class="stat"><div class="label">Completed</div><div class="value" style="color:var(--blue)">${done}</div></div>
     <div class="stat"><div class="label">Failed</div><div class="value" style="color:var(--red)">${failed}</div></div>
     <div class="stat"><div class="label">Timed Out</div><div class="value" style="color:var(--amber)">${timedout}</div></div>
@@ -1316,7 +1413,7 @@ function renderAgentSidebar() {
   const activeCounts = {};
   runs.forEach(r => {
     counts[r.agentId] = (counts[r.agentId] || 0) + 1;
-    if (r.status === 'running') activeCounts[r.agentId] = (activeCounts[r.agentId] || 0) + 1;
+    if (effectiveStatus(r) === 'running') activeCounts[r.agentId] = (activeCounts[r.agentId] || 0) + 1;
   });
 
   const agentColors = {
@@ -1359,14 +1456,15 @@ function renderRunCard(r) {
   const preview = taskFirstLine(r.task);
   const isExpanded = expandedRuns[r.runId];
   const modelShort = (r.model || '').split('/').pop();
+  const status = effectiveStatus(r);
 
   return `
     <div class="run-card" id="run-${r.runId}">
       <div class="run-card-header" onclick="toggleRun('${r.runId}')">
         <div class="run-status">
-          <span class="badge ${r.status}">
-            ${r.status === 'running' ? '<div class="live-dot" style="width:5px;height:5px"></div>' : ''}
-            ${r.status}
+          <span class="badge ${status}">
+            ${status === 'running' ? '<div class="live-dot" style="width:5px;height:5px"></div>' : ''}
+            ${status}
           </span>
           <span class="time">${formatMs(r.runtimeMs)}</span>
         </div>
@@ -1397,8 +1495,8 @@ function renderRunCard(r) {
 
 function renderListView() {
   const filtered = getFilteredRuns();
-  const running = filtered.filter(r => r.status === 'running');
-  const completed = filtered.filter(r => r.status !== 'running');
+  const running = filtered.filter(r => effectiveStatus(r) === 'running');
+  const completed = filtered.filter(r => effectiveStatus(r) !== 'running');
 
   let html = '';
 
@@ -1453,13 +1551,15 @@ function renderLanesView() {
           <span class="lane-count">${agentRuns.length} runs</span>
         </div>
         <div class="lane-body">
-          ${agentRuns.map(r => `
-            <div class="lane-card" onclick="toggleRun('${r.runId}')">
+          ${agentRuns.map(r => {
+            const status = effectiveStatus(r);
+            return `
+            <div class="lane-card" onclick="openDetailSheet('${r.runId}')">
               <div class="lc-top">
                 <span class="lc-label">${esc(r.label || r.runId.slice(0,8))}</span>
-                <span class="badge ${r.status}" style="font-size:0.6rem;padding:0.1rem 0.4rem">
-                  ${r.status === 'running' ? '<div class="live-dot" style="width:4px;height:4px"></div>' : ''}
-                  ${r.status}
+                <span class="badge ${status}" style="font-size:0.6rem;padding:0.1rem 0.4rem">
+                  ${status === 'running' ? '<div class="live-dot" style="width:4px;height:4px"></div>' : ''}
+                  ${status}
                 </span>
               </div>
               <div class="lc-task">${esc(taskFirstLine(r.task))}</div>
@@ -1473,7 +1573,8 @@ function renderLanesView() {
                 <span>tok ${fmtNum(r.totalTokens)}</span>
               </div>
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       </div>
     `;
@@ -1487,6 +1588,62 @@ function renderLanesView() {
   document.getElementById('content').innerHTML = html;
 }
 
+function buildRunDetailHtml(detail) {
+  let html = '';
+  const status = effectiveStatus(detail);
+
+  html += `<div class="detail-section">
+    <div class="detail-label">Run stats</div>
+    <div class="detail-prompt">status: ${esc(status || '-')}
+started: ${esc(formatTs(detail.startedAt))}
+ended: ${esc(formatTs(detail.endedAt))}
+duration: ${esc(formatMs(detail.runtimeMs))}
+input tokens: ${esc(String(detail.inputTokens ?? '-'))}
+output tokens: ${esc(String(detail.outputTokens ?? '-'))}
+total tokens: ${esc(String(detail.totalTokens ?? '-'))}
+model: ${esc(detail.model || '-')}
+agent: ${esc(detail.agentId || '-')}
+run id: ${esc(detail.runId || '-')}
+session: ${esc(detail.sessionKey || '-')}</div>
+  </div>`;
+
+  html += `<div class="detail-section">
+    <div class="detail-label">Prompt / task</div>
+    <div class="detail-prompt">${esc(detail.task || 'No task recorded')}</div>
+  </div>`;
+
+  html += `<div class="detail-section">
+    <div class="detail-label">Outcome metadata</div>
+    <div class="detail-prompt">${esc(JSON.stringify(detail.outcome, null, 2))}</div>
+  </div>`;
+
+  if (detail.messages && detail.messages.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-label">Transcript (${detail.messages.length} messages)</div>`;
+    detail.messages.forEach(msg => {
+      html += `<div class="transcript-msg ${msg.role}">
+        <div class="msg-role">${msg.role}</div>`;
+      if (msg.text) html += `<div class="msg-text">${esc(msg.text)}</div>`;
+      if (msg.toolCalls && msg.toolCalls.length > 0) {
+        msg.toolCalls.forEach(tc => { html += `<span class="tool-call">${esc(tc.name)}</span> `; });
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  } else {
+    html += `<div class="detail-section"><div class="detail-label">Transcript</div><div style="color:var(--text-3);font-size:0.8rem">No transcript available (session may have been cleaned up)</div></div>`;
+  }
+
+  return html;
+}
+
+async function ensureRunDetail(runId) {
+  if (detailCache[runId]) return detailCache[runId];
+  const detail = await fetchRunDetail(runId);
+  detailCache[runId] = detail;
+  return detail;
+}
+
 async function toggleRun(runId) {
   if (expandedRuns[runId]) {
     expandedRuns[runId] = false;
@@ -1497,71 +1654,52 @@ async function toggleRun(runId) {
 
   expandedRuns[runId] = true;
   const el = document.getElementById(`detail-${runId}`);
-  if (el) {
-    el.classList.add('open');
-    el.innerHTML = '<div style="padding:1rem;color:var(--text-3);font-size:0.8rem">Loading...</div>';
+  if (!el) return;
+  el.classList.add('open');
+  el.innerHTML = '<div style="padding:1rem;color:var(--text-3);font-size:0.8rem">Loading...</div>';
 
-    try {
-      const detail = await fetchRunDetail(runId);
-      let html = '';
-
-      // Run statistics
-      html += `<div class="detail-section">
-        <div class="detail-label">Run Stats</div>
-        <div class="detail-prompt">status: ${esc(detail.status || '-')}
-started: ${esc(formatTs(detail.startedAt))}
-ended: ${esc(formatTs(detail.endedAt))}
-duration: ${esc(formatMs(detail.runtimeMs))}
-input tokens: ${esc(String(detail.inputTokens ?? '-'))}
-output tokens: ${esc(String(detail.outputTokens ?? '-'))}
-total tokens: ${esc(String(detail.totalTokens ?? '-'))}</div>
-      </div>`;
-
-      // Full prompt
-      html += `<div class="detail-section">
-        <div class="detail-label">Full Prompt</div>
-        <div class="detail-prompt">${esc(detail.task || 'No task recorded')}</div>
-      </div>`;
-
-      // Outcome
-      html += `<div class="detail-section">
-        <div class="detail-label">Outcome</div>
-        <div class="detail-prompt">${esc(JSON.stringify(detail.outcome, null, 2))}</div>
-      </div>`;
-
-      // Transcript
-      if (detail.messages && detail.messages.length > 0) {
-        html += `<div class="detail-section">
-          <div class="detail-label">Transcript (${detail.messages.length} messages)</div>`;
-
-        detail.messages.forEach(msg => {
-          html += `<div class="transcript-msg ${msg.role}">
-            <div class="msg-role">${msg.role}</div>`;
-          if (msg.text) {
-            html += `<div class="msg-text">${esc(msg.text)}</div>`;
-          }
-          if (msg.toolCalls && msg.toolCalls.length > 0) {
-            msg.toolCalls.forEach(tc => {
-              html += `<span class="tool-call">${esc(tc.name)}</span> `;
-            });
-          }
-          html += '</div>';
-        });
-
-        html += '</div>';
-      } else {
-        html += `<div class="detail-section">
-          <div class="detail-label">Transcript</div>
-          <div style="color:var(--text-3);font-size:0.8rem">No transcript available (session may have been cleaned up)</div>
-        </div>`;
-      }
-
-      el.innerHTML = html;
-    } catch (e) {
-      el.innerHTML = `<div style="padding:1rem;color:var(--red);font-size:0.8rem">Failed to load: ${e.message}</div>`;
-    }
+  try {
+    const detail = await ensureRunDetail(runId);
+    el.innerHTML = buildRunDetailHtml(detail);
+  } catch (e) {
+    el.innerHTML = `<div style="padding:1rem;color:var(--red);font-size:0.8rem">Failed to load: ${e.message}</div>`;
   }
 }
+
+async function openDetailSheet(runId) {
+  activeSheetRunId = runId;
+  const sheet = document.getElementById('detailSheet');
+  const backdrop = document.getElementById('detailSheetBackdrop');
+  const title = document.getElementById('detailSheetTitle');
+  const body = document.getElementById('detailSheetBody');
+  const run = runs.find(r => r.runId === runId);
+  title.textContent = run?.label || `Run ${runId.slice(0, 8)}`;
+  body.innerHTML = '<div style="padding:0.75rem;color:var(--text-3);font-size:0.8rem">Loading…</div>';
+  sheet.classList.add('open');
+  backdrop.classList.add('open');
+  sheet.setAttribute('aria-hidden', 'false');
+
+  try {
+    const detail = await ensureRunDetail(runId);
+    if (activeSheetRunId !== runId) return;
+    body.innerHTML = buildRunDetailHtml(detail);
+  } catch (e) {
+    body.innerHTML = `<div style="padding:0.75rem;color:var(--red);font-size:0.8rem">Failed to load: ${esc(e.message || e)}</div>`;
+  }
+}
+
+function closeDetailSheet() {
+  activeSheetRunId = null;
+  const sheet = document.getElementById('detailSheet');
+  const backdrop = document.getElementById('detailSheetBackdrop');
+  sheet.classList.remove('open');
+  backdrop.classList.remove('open');
+  sheet.setAttribute('aria-hidden', 'true');
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeDetailSheet();
+});
 
 function setStatus(message = '', kind = 'info') {
   const banner = document.getElementById('statusBanner');
@@ -1594,6 +1732,7 @@ function render() {
 // Actions
 function setPage(page) {
   activePage = page === 'daily' ? 'daily' : 'monitor';
+  if (activePage !== 'monitor') closeDetailSheet();
   render();
   if (activePage === 'daily' && !dailyStats) refreshDailyStats();
 }
@@ -1605,6 +1744,7 @@ function filterAgent(id) {
 
 function setView(v) {
   currentView = v;
+  if (v !== 'lanes') closeDetailSheet();
   document.getElementById('viewList').classList.toggle('active', v === 'list');
   document.getElementById('viewLanes').classList.toggle('active', v === 'lanes');
   render();
