@@ -684,27 +684,19 @@
     border-color: rgba(59,130,246,0.38);
   }
 
-  .daily-page { max-width: 1200px; margin: 0 auto; }
-  .daily-table-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: auto;
-  }
-  .daily-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.82rem;
-    min-width: 640px;
-  }
-  .daily-table th,
-  .daily-table td {
-    padding: 0.65rem 0.7rem;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-  }
-  .daily-table th { color: var(--text-3); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
-  .daily-table td.num { font-family: var(--mono); }
+  .daily-page { max-width: 1240px; margin: 0 auto; }
+  .report-grid { display:grid; grid-template-columns: 1.1fr 1.1fr; gap:0.9rem; margin-bottom:0.9rem; }
+  .report-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:0.85rem; }
+  .report-card h3 { font-size:0.78rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-3); margin-bottom:0.6rem; }
+  .chart-wrap { width:100%; overflow:hidden; }
+  .chart-empty { color:var(--text-3); font-size:0.8rem; padding:1.5rem 0.4rem; text-align:center; }
+  .report-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  .report-table th,.report-table td { border-bottom:1px solid var(--border); padding:0.48rem 0.28rem; text-align:left; }
+  .report-table th { color:var(--text-3); font-size:0.66rem; text-transform:uppercase; letter-spacing:0.07em; }
+  .report-table td.num { font-family:var(--mono); }
+  .stack-legend { display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.4rem; }
+  .legend-item { font-size:0.68rem; color:var(--text-2); display:flex; align-items:center; gap:0.3rem; }
+  .legend-swatch { width:10px; height:10px; border-radius:3px; }
 
   /* ── Mobile ── */
   @media (max-width: 767px) {
@@ -924,7 +916,7 @@
 
 <div class="page-nav">
   <button class="page-link active" id="pageMonitor" onclick="setPage('monitor')">Monitor</button>
-  <button class="page-link" id="pageDaily" onclick="setPage('daily')">Daily Stats</button>
+  <button class="page-link" id="pageDaily" onclick="setPage('daily')">Reporting</button>
 </div>
 
 <div class="layout" id="monitorLayout">
@@ -975,19 +967,35 @@
     <div class="filter-field">
       <label class="filter-label" for="dailyWindow">Date window</label>
       <select id="dailyWindow">
-        <option value="7" selected>last 7 days</option>
+        <option value="7">last 7 days</option>
         <option value="14">last 14 days</option>
-        <option value="30">last 30 days</option>
+        <option value="30" selected>last 30 days</option>
         <option value="90">last 90 days</option>
       </select>
     </div>
     <div class="filter-field">
+      <label class="filter-label" for="reportAgent">Agent</label>
+      <select id="reportAgent"><option value="all">all agents</option></select>
+    </div>
+    <div class="filter-field">
+      <label class="filter-label" for="reportStatus">Status</label>
+      <select id="reportStatus">
+        <option value="all">all statuses</option>
+        <option value="running">running</option>
+        <option value="done">done</option>
+        <option value="failed">failed</option>
+        <option value="timeout">timeout</option>
+      </select>
+    </div>
+    <div class="filter-field">
       <label class="filter-label">Actions</label>
-      <button class="btn" onclick="refreshDailyStats()">Reload daily stats</button>
+      <button class="btn" onclick="refreshDailyStats()">Reload reporting</button>
     </div>
   </div>
   <div class="stats" id="dailyStatsSummary"></div>
-  <div id="dailyStatsContent"></div>
+  <div class="report-grid" id="reportCharts"></div>
+  <div class="report-grid" id="reportBreakdowns"></div>
+</div>
 </div>
 
 <script>
@@ -1003,8 +1011,10 @@ let expandedRuns = {};
 let runsTotal = 0;
 let lastError = '';
 let activePage = 'monitor';
-let dailyWindowDays = 7;
+let dailyWindowDays = 30;
 let dailyStats = null;
+let reportAgentFilter = "all";
+let reportStatusFilter = "all";
 const PAGE_SIZE = 200;
 const STORAGE_KEY = 'agent-monitor-ui-v1';
 
@@ -1083,7 +1093,8 @@ async function fetchRunDetail(runId) {
 }
 
 async function fetchDailyStats(days = dailyWindowDays) {
-  return fetchJsonWithFallback(`/api/stats/daily?days=${encodeURIComponent(days)}`);
+  const params = new URLSearchParams({ days: String(days), agentId: reportAgentFilter, status: reportStatusFilter });
+  return fetchJsonWithFallback(`/api/reports/dashboard?${params.toString()}`);
 }
 
 function fmtNum(n) {
@@ -1109,6 +1120,8 @@ function loadState() {
     if (Number.isFinite(st.timeWindowHours)) timeWindowHours = st.timeWindowHours;
     if (st.activePage === 'monitor' || st.activePage === 'daily') activePage = st.activePage;
     if (Number.isFinite(st.dailyWindowDays)) dailyWindowDays = st.dailyWindowDays;
+    if (typeof st.reportAgentFilter === 'string') reportAgentFilter = st.reportAgentFilter;
+    if (typeof st.reportStatusFilter === 'string') reportStatusFilter = st.reportStatusFilter;
     if (Number.isFinite(st.refreshInterval)) {
       const sel = document.getElementById('refreshInterval');
       if (sel) sel.value = String(st.refreshInterval);
@@ -1127,6 +1140,8 @@ function saveState() {
       timeWindowHours,
       activePage,
       dailyWindowDays,
+      reportAgentFilter,
+      reportStatusFilter,
       refreshInterval
     }));
   } catch (_) {}
@@ -1193,49 +1208,108 @@ function renderStats() {
   renderTokenDashboard(filtered);
 }
 
+function renderSparkline(values, color = '#3b82f6', height = 160) {
+  if (!values.length || values.every(v => v <= 0)) return '<div class="chart-empty">No data in selected filters.</div>';
+  const w = 620;
+  const h = height;
+  const maxV = Math.max(...values, 1);
+  const step = values.length > 1 ? (w - 40) / (values.length - 1) : 0;
+  const pts = values.map((v, i) => `${20 + i * step},${h - 20 - ((h - 40) * v / maxV)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">
+    <polyline fill="none" stroke="${color}" stroke-width="2.5" points="${pts}" />
+    <polyline fill="${color}22" stroke="none" points="20,${h-20} ${pts} ${w-20},${h-20}" />
+  </svg>`;
+}
+
+function renderBars(values, color = '#22c55e', height = 160) {
+  if (!values.length || values.every(v => v <= 0)) return '<div class="chart-empty">No data in selected filters.</div>';
+  const w = 620, h = height, maxV = Math.max(...values, 1), gap = 3;
+  const bw = Math.max(3, ((w - 30) / values.length) - gap);
+  const bars = values.map((v, i) => {
+    const bh = ((h - 28) * v / maxV);
+    const x = 16 + i * (bw + gap);
+    const y = h - 16 - bh;
+    return `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${color}" rx="2" />`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">${bars}</svg>`;
+}
+
+function renderStacked(runtimeSplit, agentIds, colors, height = 170) {
+  if (!runtimeSplit.length) return '<div class="chart-empty">No data in selected filters.</div>';
+  const values = runtimeSplit.map(d => d.agents.reduce((s,a)=>s+(a.runtimeMs||0),0));
+  if (values.every(v => v <= 0)) return '<div class="chart-empty">No runtime data in selected filters.</div>';
+  const w = 620, h = height, gap = 2;
+  const maxV = Math.max(...values, 1);
+  const bw = Math.max(3, ((w - 30) / runtimeSplit.length) - gap);
+  let bars = '';
+  runtimeSplit.forEach((day, i) => {
+    let yCursor = h - 14;
+    const x = 16 + i * (bw + gap);
+    agentIds.forEach((aid, idx) => {
+      const item = (day.agents || []).find(a => a.agentId === aid);
+      const v = item ? (item.runtimeMs || 0) : 0;
+      if (!v) return;
+      const bh = ((h - 24) * v / maxV);
+      yCursor -= bh;
+      bars += `<rect x="${x}" y="${yCursor}" width="${bw}" height="${bh}" fill="${colors[idx % colors.length]}" rx="1" />`;
+    });
+  });
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">${bars}</svg>`;
+}
+
 function renderDailyStats() {
   const summary = document.getElementById('dailyStatsSummary');
-  const content = document.getElementById('dailyStatsContent');
-  if (!dailyStats || !Array.isArray(dailyStats.daily) || dailyStats.daily.length === 0) {
+  const chartWrap = document.getElementById('reportCharts');
+  const breakdownWrap = document.getElementById('reportBreakdowns');
+  if (!dailyStats || !dailyStats.series) {
     summary.innerHTML = '';
-    content.innerHTML = '<div class="empty">No daily runtime data in this window yet.</div>';
+    chartWrap.innerHTML = '<div class="report-card"><div class="chart-empty">No reporting data available yet.</div></div>';
+    breakdownWrap.innerHTML = '';
     return;
   }
 
   const totals = dailyStats.totals || {};
-  const agents = Object.keys(dailyStats.agents || {}).sort();
+  const statusDist = dailyStats.breakdowns?.statusDistribution || {};
+  const runtimeTrend = dailyStats.series?.runtimeTrend || [];
+  const runsTrend = dailyStats.series?.runsTrend || [];
+  const tokenTrend = dailyStats.series?.tokenTrend || [];
+  const split = dailyStats.series?.runtimeSplitByAgent || [];
+  const topAgents = dailyStats.breakdowns?.topAgentsByRuntime || [];
+  const avgRuntime = dailyStats.breakdowns?.avgRuntimeByAgent || [];
+  const colors = ['#3b82f6','#22c55e','#f59e0b','#a855f7','#ef4444','#14b8a6','#f97316','#eab308'];
 
   summary.innerHTML = `
-    <div class="stat"><div class="label">Days with data</div><div class="value">${fmtNum(totals.daysWithData || 0)}</div></div>
     <div class="stat"><div class="label">Runs (window)</div><div class="value">${fmtNum(totals.runCount || 0)}</div></div>
     <div class="stat"><div class="label">Runtime (window)</div><div class="value">${formatMs(totals.runtimeMs || 0)}</div></div>
+    <div class="stat"><div class="label">Agents</div><div class="value">${fmtNum(totals.agents || 0)}</div></div>
+    <div class="stat"><div class="label">Total Tokens</div><div class="value">${fmtNum(totals.totalTokens || 0)}</div><div class="detail">${fmtNum(totals.runsWithTokens || 0)} runs with token data</div></div>
   `;
 
-  const rows = dailyStats.daily.slice().reverse().map(day => {
-    const agentBreakdown = agents.map(agentId => {
-      const a = day.agents?.[agentId] || { runCount: 0, runtimeMs: 0 };
-      return `<div>${esc(agentId)}: ${fmtNum(a.runCount)} runs • ${formatMs(a.runtimeMs || 0)}</div>`;
-    }).join('');
-
-    return `<tr>
-      <td>${esc(day.date)}</td>
-      <td class="num">${fmtNum(day.runCount || 0)}</td>
-      <td class="num">${formatMs(day.runtimeMs || 0)}</td>
-      <td>${agentBreakdown || '-'}</td>
-    </tr>`;
-  }).join('');
-
-  content.innerHTML = `
-    <div class="daily-table-wrap">
-      <table class="daily-table">
-        <thead>
-          <tr><th>Date</th><th>Run Count</th><th>Total Runtime</th><th>By Agent</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
+  chartWrap.innerHTML = `
+    <div class="report-card"><h3>Runtime trend per day</h3><div class="chart-wrap">${renderSparkline(runtimeTrend.map(d => d.runtimeMs || 0), '#3b82f6')}</div></div>
+    <div class="report-card"><h3>Runs per day</h3><div class="chart-wrap">${renderBars(runsTrend.map(d => d.runCount || 0), '#22c55e')}</div></div>
+    <div class="report-card"><h3>Runtime split by agent</h3><div class="chart-wrap">${renderStacked(split, dailyStats.agentIds || [], colors)}</div>
+      <div class="stack-legend">${(dailyStats.agentIds||[]).map((a,i)=>`<span class="legend-item"><span class="legend-swatch" style="background:${colors[i%colors.length]}"></span>${esc(a)}</span>`).join('')}</div>
     </div>
+    <div class="report-card"><h3>Token trend (where available)</h3><div class="chart-wrap">${renderBars(tokenTrend.map(d => d.totalTokens || 0), '#a855f7')}</div></div>
+  `;
+
+  breakdownWrap.innerHTML = `
+    <div class="report-card"><h3>Top agents by runtime</h3><table class="report-table"><thead><tr><th>Agent</th><th>Runtime</th><th>Runs</th></tr></thead><tbody>
+      ${(topAgents.length ? topAgents : []).map(a => `<tr><td>${esc(a.agentId)}</td><td class="num">${formatMs(a.runtimeMs)}</td><td class="num">${fmtNum(a.runCount)}</td></tr>`).join('') || '<tr><td colspan="3">No data</td></tr>'}
+    </tbody></table></div>
+    <div class="report-card"><h3>Success / fail / timeout distribution</h3><table class="report-table"><tbody>
+      <tr><td>running</td><td class="num">${fmtNum(statusDist.running || 0)}</td></tr>
+      <tr><td>done</td><td class="num">${fmtNum(statusDist.done || 0)}</td></tr>
+      <tr><td>failed</td><td class="num">${fmtNum(statusDist.failed || 0)}</td></tr>
+      <tr><td>timeout</td><td class="num">${fmtNum(statusDist.timeout || 0)}</td></tr>
+    </tbody></table></div>
+    <div class="report-card"><h3>Avg runtime per run by agent</h3><table class="report-table"><thead><tr><th>Agent</th><th>Avg runtime</th><th>Runs</th></tr></thead><tbody>
+      ${(avgRuntime.length ? avgRuntime : []).slice(0,10).map(a => `<tr><td>${esc(a.agentId)}</td><td class="num">${formatMs(a.avgRuntimeMs)}</td><td class="num">${fmtNum(a.runCount)}</td></tr>`).join('') || '<tr><td colspan="3">No data</td></tr>'}
+    </tbody></table></div>
   `;
 }
+
 
 function renderAgentSidebar() {
   const counts = {};
@@ -1580,12 +1654,21 @@ async function refresh() {
 async function refreshDailyStats() {
   try {
     dailyStats = await fetchDailyStats(dailyWindowDays);
+    const agentSel = document.getElementById('reportAgent');
+    if (agentSel) {
+      const current = reportAgentFilter || 'all';
+      const ids = Array.from(new Set(['all', ...(agents || []), ...((dailyStats && dailyStats.agentIds) || [])]));
+      agentSel.innerHTML = ids.map(id => `<option value="${esc(id)}">${esc(id === 'all' ? 'all agents' : id)}</option>`).join('');
+      agentSel.value = ids.includes(current) ? current : 'all';
+      reportAgentFilter = agentSel.value;
+    }
     if (activePage === 'daily') renderDailyStats();
   } catch (e) {
-    console.error('Daily stats failed:', e);
+    console.error('Reporting failed:', e);
     if (activePage === 'daily') {
       document.getElementById('dailyStatsSummary').innerHTML = '';
-      document.getElementById('dailyStatsContent').innerHTML = `<div class="empty">Unable to load daily stats: ${esc(e.message || e)}</div>`;
+      document.getElementById('reportCharts').innerHTML = `<div class="report-card"><div class="chart-empty">Unable to load reporting: ${esc(e.message || e)}</div></div>`;
+      document.getElementById('reportBreakdowns').innerHTML = '';
     }
   }
 }
@@ -1620,13 +1703,24 @@ document.getElementById('searchInput').value = searchQuery;
 document.getElementById('statusFilter').value = statusFilter;
 document.getElementById('timeWindow').value = String(timeWindowHours);
 document.getElementById('dailyWindow').value = String(dailyWindowDays);
+document.getElementById('reportStatus').value = reportStatusFilter;
 document.getElementById('viewList').classList.toggle('active', currentView === 'list');
 document.getElementById('viewLanes').classList.toggle('active', currentView === 'lanes');
 document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim(); render(); });
 document.getElementById('statusFilter').addEventListener('change', (e) => { statusFilter = e.target.value; render(); });
 document.getElementById('timeWindow').addEventListener('change', (e) => { timeWindowHours = parseInt(e.target.value, 10) || 0; render(); });
 document.getElementById('dailyWindow').addEventListener('change', async (e) => {
-  dailyWindowDays = parseInt(e.target.value, 10) || 7;
+  dailyWindowDays = parseInt(e.target.value, 10) || 30;
+  await refreshDailyStats();
+  render();
+});
+document.getElementById('reportAgent').addEventListener('change', async (e) => {
+  reportAgentFilter = e.target.value || 'all';
+  await refreshDailyStats();
+  render();
+});
+document.getElementById('reportStatus').addEventListener('change', async (e) => {
+  reportStatusFilter = e.target.value || 'all';
   await refreshDailyStats();
   render();
 });

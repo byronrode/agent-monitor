@@ -513,6 +513,199 @@ def query_daily_stats(days=7):
     }
 
 
+def query_reporting_dashboard(days=30, agent_id=None, status=None):
+    sync_runs_to_db()
+    days = max(1, min(int(days or 30), 180))
+    now_ms = int(time.time() * 1000)
+    cutoff = now_ms - days * 24 * 60 * 60 * 1000
+
+    where = ["started_at IS NOT NULL", "started_at >= ?"]
+    args = [cutoff]
+    if agent_id and agent_id != "all":
+        where.append("agent_id = ?")
+        args.append(agent_id)
+    if status and status != "all":
+        where.append("status = ?")
+        args.append(status)
+    where_sql = " AND ".join(where)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+
+        daily_rows = conn.execute(
+            f"""
+            SELECT
+                DATE(started_at / 1000, 'unixepoch', 'localtime') AS day,
+                COALESCE(agent_id, 'unknown') AS agent_id,
+                COUNT(*) AS run_count,
+                SUM(COALESCE(runtime_ms,
+                    CASE
+                        WHEN ended_at IS NOT NULL AND started_at IS NOT NULL AND ended_at >= started_at
+                            THEN (ended_at - started_at)
+                        ELSE 0
+                    END
+                )) AS runtime_ms,
+                SUM(COALESCE(total_tokens,
+                    CASE
+                        WHEN input_tokens IS NOT NULL OR output_tokens IS NOT NULL
+                            THEN COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                        ELSE NULL
+                    END
+                )) AS token_total,
+                SUM(CASE
+                    WHEN total_tokens IS NOT NULL OR input_tokens IS NOT NULL OR output_tokens IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END) AS token_runs
+            FROM run_history
+            WHERE {where_sql}
+            GROUP BY day, agent_id
+            ORDER BY day ASC, agent_id ASC
+            """,
+            args,
+        ).fetchall()
+
+        status_rows = conn.execute(
+            f"""
+            SELECT status, COUNT(*) AS count
+            FROM run_history
+            WHERE {where_sql}
+            GROUP BY status
+            """,
+            args,
+        ).fetchall()
+
+        agent_rows = conn.execute(
+            f"""
+            SELECT
+                COALESCE(agent_id, 'unknown') AS agent_id,
+                COUNT(*) AS run_count,
+                SUM(COALESCE(runtime_ms,
+                    CASE
+                        WHEN ended_at IS NOT NULL AND started_at IS NOT NULL AND ended_at >= started_at
+                            THEN (ended_at - started_at)
+                        ELSE 0
+                    END
+                )) AS runtime_ms
+            FROM run_history
+            WHERE {where_sql}
+            GROUP BY agent_id
+            ORDER BY runtime_ms DESC
+            """,
+            args,
+        ).fetchall()
+
+    by_day = {}
+    day_agent_runtime = {}
+    agent_totals = {}
+
+    for row in daily_rows:
+        day = row["day"]
+        aid = row["agent_id"] or "unknown"
+        runs = int(row["run_count"] or 0)
+        runtime_ms = int(row["runtime_ms"] or 0)
+        token_total = row["token_total"]
+        token_runs = int(row["token_runs"] or 0)
+
+        if day not in by_day:
+            by_day[day] = {"runtimeMs": 0, "runCount": 0, "tokenTotal": 0, "tokenRuns": 0}
+            day_agent_runtime[day] = {}
+
+        by_day[day]["runtimeMs"] += runtime_ms
+        by_day[day]["runCount"] += runs
+        by_day[day]["tokenTotal"] += int(token_total or 0)
+        by_day[day]["tokenRuns"] += token_runs
+        day_agent_runtime[day][aid] = runtime_ms
+
+        if aid not in agent_totals:
+            agent_totals[aid] = {"runtimeMs": 0, "runCount": 0}
+        agent_totals[aid]["runtimeMs"] += runtime_ms
+        agent_totals[aid]["runCount"] += runs
+
+    status_distribution = {"running": 0, "done": 0, "failed": 0, "timeout": 0}
+    for row in status_rows:
+        st = row["status"] or "unknown"
+        if st not in status_distribution:
+            status_distribution[st] = 0
+        status_distribution[st] += int(row["count"] or 0)
+
+    top_agents = [
+        {
+            "agentId": row["agent_id"] or "unknown",
+            "runtimeMs": int(row["runtime_ms"] or 0),
+            "runCount": int(row["run_count"] or 0),
+            "avgRuntimeMs": int((row["runtime_ms"] or 0) / max(int(row["run_count"] or 1), 1)),
+        }
+        for row in agent_rows
+    ]
+
+    day_labels = []
+    for i in range(days - 1, -1, -1):
+        ts = now_ms - i * 24 * 60 * 60 * 1000
+        day_labels.append(time.strftime("%Y-%m-%d", time.localtime(ts / 1000)))
+
+    runtime_trend = [{"date": d, "runtimeMs": int(by_day.get(d, {}).get("runtimeMs", 0))} for d in day_labels]
+    runs_trend = [{"date": d, "runCount": int(by_day.get(d, {}).get("runCount", 0))} for d in day_labels]
+    token_trend = [
+        {
+            "date": d,
+            "totalTokens": int(by_day.get(d, {}).get("tokenTotal", 0)),
+            "runsWithTokens": int(by_day.get(d, {}).get("tokenRuns", 0)),
+        }
+        for d in day_labels
+    ]
+
+    agent_ids = sorted(agent_totals.keys())
+    runtime_split = [
+        {
+            "date": d,
+            "agents": [{"agentId": aid, "runtimeMs": int(day_agent_runtime.get(d, {}).get(aid, 0))} for aid in agent_ids],
+        }
+        for d in day_labels
+    ]
+
+    avg_runtime_by_agent = [
+        {
+            "agentId": aid,
+            "runCount": vals["runCount"],
+            "runtimeMs": vals["runtimeMs"],
+            "avgRuntimeMs": int(vals["runtimeMs"] / vals["runCount"]) if vals["runCount"] > 0 else 0,
+        }
+        for aid, vals in sorted(agent_totals.items(), key=lambda x: x[1]["runtimeMs"], reverse=True)
+    ]
+
+    totals = {
+        "runCount": sum(v["runCount"] for v in agent_totals.values()),
+        "runtimeMs": sum(v["runtimeMs"] for v in agent_totals.values()),
+        "agents": len(agent_ids),
+        "days": days,
+        "totalTokens": sum(item["totalTokens"] for item in token_trend),
+        "runsWithTokens": sum(item["runsWithTokens"] for item in token_trend),
+    }
+
+    return {
+        "windowDays": days,
+        "filters": {
+            "agentId": agent_id or "all",
+            "status": status or "all",
+        },
+        "generatedAt": now_ms,
+        "totals": totals,
+        "series": {
+            "runtimeTrend": runtime_trend,
+            "runtimeSplitByAgent": runtime_split,
+            "runsTrend": runs_trend,
+            "tokenTrend": token_trend,
+        },
+        "breakdowns": {
+            "topAgentsByRuntime": top_agents[:8],
+            "statusDistribution": status_distribution,
+            "avgRuntimeByAgent": avg_runtime_by_agent,
+        },
+        "agentIds": agent_ids,
+    }
+
+
 def get_run_detail(run_id):
     sync_runs_to_db()
     with sqlite3.connect(DB_PATH) as conn:
@@ -635,6 +828,11 @@ class Handler(SimpleHTTPRequestHandler):
         elif path == "/api/stats/daily":
             days = int(q.get("days", ["7"])[0])
             self.json_response(query_daily_stats(days=days))
+        elif path == "/api/reports/dashboard":
+            days = int(q.get("days", ["30"])[0])
+            agent_id = q.get("agentId", [None])[0]
+            status = q.get("status", [None])[0]
+            self.json_response(query_reporting_dashboard(days=days, agent_id=agent_id, status=status))
         elif path == "/api/runs":
             limit = int(q.get("limit", ["200"])[0])
             offset = int(q.get("offset", ["0"])[0])
