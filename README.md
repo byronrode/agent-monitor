@@ -25,6 +25,10 @@ A lightweight dashboard for monitoring OpenClaw agent runs. Shows agent lanes, t
 git clone https://github.com/byronrode/agent-monitor.git
 cd agent-monitor
 
+# Install UI build tooling + compile Tailwind CSS
+npm install
+npm run build:css
+
 # Run (defaults to ~/.openclaw, port 8787)
 python3 server.py
 
@@ -37,6 +41,19 @@ Then open `http://localhost:8787` in your browser.
 Reverse-proxy subpath support is built in. The UI and API resolve correctly from both:
 - `http://localhost:8787`
 - `http://localhost:8787/agent-monitor`
+
+## UI Styling (Tailwind + Safari/Arc consistency)
+
+- Tailwind CSS is wired through a local build pipeline (`tailwindcss` + `@tailwindcss/cli`).
+- Source file: `static/tailwind.input.css`
+- Built file: `static/tailwind.css`
+- Build command: `npm run build:css`
+
+To neutralize Safari/Arc form-control differences, header controls now use a shared reset/height utility (`ui-control-reset` + `ui-control-height`) and explicit `appearance: none`/`-webkit-appearance: none`, with fixed heights at breakpoints:
+- Desktop (`>=768px`): `32px`
+- Mobile (`<768px`): `48px`
+
+This applies to List/Lanes toggle buttons, interval select, theme button, and refresh button so they render at matching visible height.
 
 ## Run as a systemd User Service (Daemon)
 
