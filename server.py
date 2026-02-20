@@ -49,6 +49,7 @@ def parse_retention_days(raw: str):
 
 
 RETENTION_DAYS = parse_retention_days(RETENTION_RAW)
+_SESSION_TOKENS_CACHE = {}
 
 
 def sanitize(text: str) -> str:
@@ -239,6 +240,50 @@ def extract_token_usage(run: dict, outcome: dict):
     return input_tokens, output_tokens, total_tokens
 
 
+def _load_agent_sessions_index(agent_id: str):
+    """Load OPENCLAW_DIR/agents/<agent>/sessions/sessions.json as a map."""
+    if not agent_id:
+        return {}
+    if agent_id in _SESSION_TOKENS_CACHE:
+        return _SESSION_TOKENS_CACHE[agent_id]
+
+    sessions_file = OPENCLAW_DIR / "agents" / agent_id / "sessions" / "sessions.json"
+    data = {}
+    try:
+        if sessions_file.exists():
+            with open(sessions_file) as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                data = loaded
+    except Exception:
+        data = {}
+
+    _SESSION_TOKENS_CACHE[agent_id] = data
+    return data
+
+
+def get_tokens_from_session_index(session_key: str):
+    """Resolve token usage for a run via its child session metadata when available."""
+    parts = (session_key or "").split(":")
+    if len(parts) < 2:
+        return None, None, None
+
+    agent_id = parts[1]
+    sessions = _load_agent_sessions_index(agent_id)
+    entry = sessions.get(session_key)
+    if not isinstance(entry, dict):
+        return None, None, None
+
+    input_tokens = as_int(entry.get("inputTokens", entry.get("input_tokens")))
+    output_tokens = as_int(entry.get("outputTokens", entry.get("output_tokens")))
+    total_tokens = as_int(entry.get("totalTokens", entry.get("total_tokens")))
+
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
+
+    return input_tokens, output_tokens, total_tokens
+
+
 def load_current_runs_file():
     runs_file = OPENCLAW_DIR / "subagents" / "runs.json"
     if not runs_file.exists():
@@ -266,6 +311,7 @@ def sync_runs_to_db():
     runs = load_current_runs_file()
     if not runs:
         return
+    _SESSION_TOKENS_CACHE.clear()
     now_ms = int(time.time() * 1000)
 
     with sqlite3.connect(DB_PATH) as conn:
@@ -281,6 +327,8 @@ def sync_runs_to_db():
             outcome = run.get("outcome", {}) or {}
             input_tokens, output_tokens, total_tokens = extract_token_usage(run, outcome)
             session_key = run.get("childSessionKey", "")
+            if input_tokens is None and output_tokens is None and total_tokens is None:
+                input_tokens, output_tokens, total_tokens = get_tokens_from_session_index(session_key)
 
             conn.execute(
                 """

@@ -449,12 +449,65 @@
 
   .filters {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1.8fr) repeat(3, minmax(0, 1fr));
     gap: 0.75rem;
     margin-bottom: 1rem;
+    padding: 0.8rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0));
+    border: 1px solid var(--border);
+    border-radius: 10px;
   }
 
-  .filters input, .filters select { width: 100%; }
+  .filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .filter-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding-left: 0.1rem;
+  }
+
+  .filters input,
+  .filters select,
+  .filters .btn {
+    width: 100%;
+    min-height: 2.35rem;
+    border-radius: 8px;
+    font-size: 0.78rem;
+  }
+
+  .filters input,
+  .filters select {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.55rem 0.75rem;
+  }
+
+  .filters input::placeholder { color: var(--text-3); }
+  .filters input:focus,
+  .filters select:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+  }
+
+  .filter-clear {
+    align-self: flex-end;
+    background: var(--surface-2) !important;
+    border-color: var(--border) !important;
+    color: var(--text-2);
+    font-weight: 600;
+  }
+
+  .filter-clear:hover { color: var(--text); border-color: var(--border-hover) !important; }
 
   .token-dashboard {
     display: grid;
@@ -672,7 +725,15 @@
 
     /* Main content */
     .main { padding: 1rem; }
-    .filters { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .filters {
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+      padding: 0.65rem;
+    }
+    .filter-field { gap: 0.3rem; }
+    .filters input,
+    .filters select,
+    .filters .btn { min-height: 2.5rem; font-size: 0.82rem; }
     .token-dashboard { grid-template-columns: 1fr; }
 
     /* Stats: 2×2 + 1 */
@@ -723,6 +784,8 @@
     .refresh-controls select { max-width: 68px; font-size: 0.65rem; min-height: 2rem; }
     #refreshBtn { min-height: 2rem; padding: 0.4rem 0.55rem; font-size: 0.66rem; }
     .main { padding: 0.75rem; }
+    .filters { padding: 0.55rem; gap: 0.45rem; }
+    .filter-label { font-size: 0.6rem; }
     .stats { gap: 0.35rem; }
     .stat { padding: 0.5rem; }
     .stat .value { font-size: 1.15rem; }
@@ -769,22 +832,34 @@
     <div id="statusBanner" class="status-banner"></div>
     <div class="stats" id="stats"></div>
     <div class="filters" id="filters">
-      <input id="searchInput" placeholder="Search label/task/model" />
-      <select id="statusFilter">
-        <option value="all">all statuses</option>
-        <option value="running">running</option>
-        <option value="done">done</option>
-        <option value="failed">failed</option>
-        <option value="timeout">timeout</option>
-      </select>
-      <select id="timeWindow">
-        <option value="0">all time</option>
-        <option value="1">last 1h</option>
-        <option value="6">last 6h</option>
-        <option value="24" selected>last 24h</option>
-        <option value="168">last 7d</option>
-      </select>
-      <button class="btn" onclick="clearFilters()">Clear filters</button>
+      <div class="filter-field">
+        <label class="filter-label" for="searchInput">Search</label>
+        <input id="searchInput" placeholder="Search label, task, agent, or model" />
+      </div>
+      <div class="filter-field">
+        <label class="filter-label" for="statusFilter">Status</label>
+        <select id="statusFilter">
+          <option value="all">all statuses</option>
+          <option value="running">running</option>
+          <option value="done">done</option>
+          <option value="failed">failed</option>
+          <option value="timeout">timeout</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label" for="timeWindow">Time window</label>
+        <select id="timeWindow">
+          <option value="0">all time</option>
+          <option value="1">last 1h</option>
+          <option value="6">last 6h</option>
+          <option value="24" selected>last 24h</option>
+          <option value="168">last 7d</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Actions</label>
+        <button class="btn filter-clear" onclick="clearFilters()">Clear filters</button>
+      </div>
     </div>
     <div class="token-dashboard" id="tokenDashboard"></div>
     <div id="content"></div>
