@@ -704,7 +704,10 @@ function detectBasePath() {
 
 const baseCandidates = (() => {
   const detected = detectBasePath();
-  return detected ? [detected, ''] : [''];
+  if (detected) {
+    return detected === '/agent-monitor' ? [detected, ''] : [detected, '/agent-monitor', ''];
+  }
+  return ['', '/agent-monitor'];
 })();
 
 async function fetchJsonWithFallback(endpoint) {
@@ -723,7 +726,7 @@ async function fetchJsonWithFallback(endpoint) {
 }
 
 // Helpers
-const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 function formatMs(ms) {
   if (!ms || ms < 0) return '-';
