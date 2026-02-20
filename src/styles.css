@@ -11,6 +11,7 @@
   --surface-3: #222228;
   --border: #27272a;
   --border-hover: #3f3f46;
+  --card-border-muted: rgba(39, 39, 42, 0.78);
   --text: #fafafa;
   --text-2: #a1a1aa;
   --text-3: #71717a;
@@ -46,6 +47,7 @@
   --surface-3: #e8edf5;
   --border: #d7dde8;
   --border-hover: #b7c3d6;
+  --card-border-muted: rgba(148, 163, 184, 0.55);
   --text: #0f172a;
   --text-2: #334155;
   --text-3: #64748b;
