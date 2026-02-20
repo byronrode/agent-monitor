@@ -1,5 +1,5 @@
 import type { Run, RunState } from '../lib/types'
-import { runState, stateTone } from '../lib/utils'
+import { runState } from '../lib/utils'
 
 type Props = {
   runs: Run[]
@@ -9,29 +9,22 @@ type Props = {
   setStateFilter: (v: RunState | 'all') => void
 }
 
-export function AgentSidebar({ runs, selectedAgent, setSelectedAgent, stateFilter, setStateFilter }: Props) {
-  const latestByAgent = new Map<string, Run>()
-  runs.forEach((r) => {
-    if (!latestByAgent.has(r.agentId)) latestByAgent.set(r.agentId, r)
-  })
-  const stateCounts = { running: 0, quiet: 0, stalled: 0, dead: 0 }
-  latestByAgent.forEach((r) => stateCounts[runState(r)]++)
+const stateColor: Record<string, string> = { running: 'var(--green)', quiet: 'var(--amber)', stalled: 'var(--red)', dead: 'var(--text-3)' }
+
+export function AgentSidebar({ runs, selectedAgent, setSelectedAgent }: Props) {
+  const ids = Array.from(new Set(runs.map((r) => r.agentId))).sort()
+  const byAgent = new Map<string, Run[]>()
+  runs.forEach((r) => byAgent.set(r.agentId, [...(byAgent.get(r.agentId) || []), r]))
 
   return (
-    <aside className="card sidebar-card h-fit min-w-64 space-y-3">
-      <div className="lane-title">Agents</div>
-      <select className="btn w-full" value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)}>
-        <option value="all">All agents</option>
-        {[...latestByAgent.keys()].sort().map((a) => <option key={a} value={a}>{a}</option>)}
-      </select>
-      <div className="space-y-1">
-        <button className={`btn w-full text-left ${stateFilter === 'all' ? 'btn-primary' : ''}`} onClick={() => setStateFilter('all')}>All states</button>
-        {(['running','quiet','stalled','dead'] as const).map((s) => (
-          <button key={s} className={`btn w-full text-left ${stateFilter === s ? 'btn-primary' : ''}`} onClick={() => setStateFilter(s)}>
-            <span className={`badge ${stateTone[s]}`}>{s}</span> <span className="ml-2">{stateCounts[s]}</span>
-          </button>
-        ))}
-      </div>
+    <aside className="sidebar">
+      <div className="sidebar-title">Agents</div>
+      <div className={`agent-item ${selectedAgent === 'all' ? 'active' : ''}`} onClick={() => setSelectedAgent('all')}><span className="dot" style={{ background: 'var(--blue)' }} /><span>all agents</span><span className="count">{runs.length}</span></div>
+      {ids.map((id) => {
+        const list = byAgent.get(id) || []
+        const st = list[0] ? runState(list[0]) : 'dead'
+        return <div key={id} className={`agent-item ${selectedAgent === id ? 'active' : ''}`} onClick={() => setSelectedAgent(id)}><span className="dot" style={{ background: stateColor[st] }} /><span>{id}</span><span className="count">{list.length}</span></div>
+      })}
     </aside>
   )
 }

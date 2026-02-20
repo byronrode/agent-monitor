@@ -1,32 +1,27 @@
-import type { Run, RunDetail, RunState } from '../lib/types'
-import { fmtDuration, runState, stateTone } from '../lib/utils'
+import type { Run } from '../lib/types'
+import { fmtDuration, runState } from '../lib/utils'
 
 type Props = {
   runs: Run[]
   laneMode: 'lanes' | 'list'
-  selectedRun?: RunDetail
   onSelect: (id: string) => void
-  stateFilter: RunState | 'all'
 }
 
-export function LanesBoard({ runs, laneMode, onSelect, stateFilter }: Props) {
-  const filtered = runs.filter((r) => stateFilter === 'all' || runState(r) === stateFilter)
-  const statuses = ['running', 'done', 'failed', 'timeout', 'unknown'] as const
+const stateClass: Record<string, string> = { running: 'running', quiet: 'quiet', stalled: 'stalled', dead: 'dead', done: 'done', failed: 'failed', timeout: 'timeout', unknown: 'unknown' }
 
+export function LanesBoard({ runs, laneMode, onSelect }: Props) {
   if (laneMode === 'list') {
-    return <div className="card list-stack">{filtered.map((r) => <RunRow key={r.runId} run={r} onSelect={onSelect} />)}</div>
+    return <div className="run-list">{runs.map((r) => <RunCard key={r.runId} run={r} onSelect={onSelect} />)}</div>
   }
-
+  const agentIds = Array.from(new Set(runs.map((r) => r.agentId)))
   return (
-    <div className="lane-grid">
-      {statuses.map((st) => {
-        const laneRuns = filtered.filter((r) => r.status === st)
+    <div className="lanes">
+      {agentIds.map((agentId) => {
+        const agentRuns = runs.filter((r) => r.agentId === agentId)
         return (
-          <div key={st} className="card lane-card">
-            <div className="lane-title">{st} · {laneRuns.length}</div>
-            <div className="lane-list">
-              {laneRuns.map((r) => <RunRow key={r.runId} run={r} onSelect={onSelect} compact />)}
-            </div>
+          <div className="lane" key={agentId}>
+            <div className="lane-header"><span className="lane-name">{agentId}</span><span className="lane-count">{agentRuns.length} runs</span></div>
+            <div className="lane-body">{agentRuns.map((r) => <LaneCard key={r.runId} run={r} onSelect={onSelect} />)}</div>
           </div>
         )
       })}
@@ -34,16 +29,14 @@ export function LanesBoard({ runs, laneMode, onSelect, stateFilter }: Props) {
   )
 }
 
-function RunRow({ run, onSelect, compact }: { run: Run; onSelect: (id: string) => void; compact?: boolean }) {
-  const state = runState(run)
-  return (
-    <button onClick={() => onSelect(run.runId)} className="run-row">
-      <div className="flex items-center justify-between gap-2">
-        <div className="run-agent truncate">{run.agentId}</div>
-        <span className={`badge ${stateTone[state]}`}>{state}</span>
-      </div>
-      <div className="run-task line-clamp-2">{run.task || run.label}</div>
-      {!compact && <div className="run-runtime">{fmtDuration(run.runtimeMs)}</div>}
-    </button>
-  )
+function RunCard({ run, onSelect }: { run: Run; onSelect: (id: string) => void }) {
+  const live = runState(run)
+  const badge = run.status === 'running' ? live : run.status
+  return <div className="run-card" onClick={() => onSelect(run.runId)}><div className="run-card-header"><div className="run-status"><span className={`badge ${stateClass[badge]}`}>{badge}</span><span className="time">{fmtDuration(run.runtimeMs)}</span></div><div className="run-info"><div className="title-row"><span className="name">{run.label || run.agentId}</span><span className="agent-tag">{run.agentId}</span><span className="model-tag">{run.model || 'model'}</span></div><div className="task-preview">{run.task || '—'}</div></div><div className="run-meta"><div>{new Date(run.startedAt).toLocaleString()}</div></div></div></div>
+}
+
+function LaneCard({ run, onSelect }: { run: Run; onSelect: (id: string) => void }) {
+  const live = runState(run)
+  const badge = run.status === 'running' ? live : run.status
+  return <div className="lane-card" onClick={() => onSelect(run.runId)}><div className="lc-top"><span className="lc-label">{run.label || run.agentId}</span><span className={`badge ${stateClass[badge]}`}>{badge}</span></div><div className="lc-task">{run.task || '—'}</div><div className="lc-bottom"><span>{fmtDuration(run.runtimeMs)}</span></div></div>
 }
