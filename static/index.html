@@ -29,8 +29,82 @@
     --blue-bg: rgba(59,130,246,0.1);
     --purple: #a855f7;
     --purple-bg: rgba(168,85,247,0.08);
+    --surface-tint-1: rgba(255,255,255,0.03);
+    --surface-tint-2: rgba(255,255,255,0.025);
+    --surface-tint-3: rgba(255,255,255,0.02);
+    --surface-tint-4: rgba(255,255,255,0.01);
+    --surface-tint-0: rgba(255,255,255,0);
+    --status-error-text: #fecaca;
+    --status-info-text: #bfdbfe;
+    --focus-ring: rgba(59,130,246,0.2);
+    --sheet-backdrop: rgba(0,0,0,0.55);
+    --sheet-shadow: -14px 0 36px rgba(0,0,0,0.45);
+    --badge-stale-bg: rgba(244,63,94,0.12);
+    --badge-stale-text: #fb7185;
+    --accent-active-bg: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.12));
+    --accent-active-bg-soft: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.08));
+    --accent-active-border: rgba(59,130,246,0.42);
+    --accent-active-border-soft: rgba(59,130,246,0.38);
+    --accent-active-text: #dbeafe;
+    --chart-blue: #60a5fa;
+    --chart-green: #34d399;
+    --chart-purple: #c084fc;
+    --chart-amber: #f59e0b;
+    --chart-red: #ef4444;
+    --chart-teal: #14b8a6;
+    --chart-orange: #f97316;
+    --chart-yellow: #eab308;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Inter', system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+
+  :root[data-theme="light"] {
+    --bg: #f7f8fb;
+    --surface: #ffffff;
+    --surface-2: #f2f4f8;
+    --surface-3: #e8edf5;
+    --border: #d7dde8;
+    --border-hover: #b7c3d6;
+    --text: #0f172a;
+    --text-2: #334155;
+    --text-3: #64748b;
+    --green: #15803d;
+    --green-bg: rgba(21,128,61,0.12);
+    --amber: #b45309;
+    --amber-bg: rgba(180,83,9,0.13);
+    --red: #b91c1c;
+    --red-bg: rgba(185,28,28,0.12);
+    --blue: #1d4ed8;
+    --blue-bg: rgba(29,78,216,0.11);
+    --purple: #7e22ce;
+    --purple-bg: rgba(126,34,206,0.1);
+    --surface-tint-1: rgba(15,23,42,0.04);
+    --surface-tint-2: rgba(15,23,42,0.03);
+    --surface-tint-3: rgba(15,23,42,0.02);
+    --surface-tint-4: rgba(15,23,42,0.015);
+    --surface-tint-0: rgba(15,23,42,0);
+    --status-error-text: #7f1d1d;
+    --status-info-text: #1e3a8a;
+    --focus-ring: rgba(29,78,216,0.2);
+    --sheet-backdrop: rgba(15,23,42,0.25);
+    --sheet-shadow: -14px 0 28px rgba(15,23,42,0.2);
+    --badge-stale-bg: rgba(225,29,72,0.12);
+    --badge-stale-text: #9f1239;
+    --accent-active-bg: linear-gradient(180deg, rgba(29,78,216,0.16), rgba(29,78,216,0.08));
+    --accent-active-bg-soft: linear-gradient(180deg, rgba(29,78,216,0.14), rgba(29,78,216,0.05));
+    --accent-active-border: rgba(29,78,216,0.35);
+    --accent-active-border-soft: rgba(29,78,216,0.28);
+    --accent-active-text: #1e3a8a;
+    --chart-blue: #2563eb;
+    --chart-green: #16a34a;
+    --chart-purple: #9333ea;
+    --chart-amber: #d97706;
+    --chart-red: #dc2626;
+    --chart-teal: #0f766e;
+    --chart-orange: #ea580c;
+    --chart-yellow: #ca8a04;
+    color-scheme: light;
   }
 
   body {
@@ -48,7 +122,7 @@
     gap: 1rem;
     padding: 0.8rem 2rem 0.7rem;
     border-bottom: 1px solid var(--border);
-    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)) var(--surface);
+    background: linear-gradient(180deg, var(--surface-tint-3), var(--surface-tint-0)) var(--surface);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -66,7 +140,7 @@
     height: 42px;
     flex-shrink: 0;
     border-radius: 8px;
-    background: rgba(255,255,255,0.03);
+    background: var(--surface-tint-1);
     border: 1px solid var(--border);
     padding: 4px;
   }
@@ -111,7 +185,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0)) var(--surface-2);
+    background: linear-gradient(180deg, var(--surface-tint-2), var(--surface-tint-0)) var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 0.28rem;
@@ -131,7 +205,7 @@
     white-space: nowrap;
     border-radius: 8px;
     font-weight: 600;
-    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) var(--surface-2);
+    background: linear-gradient(180deg, var(--surface-tint-1), var(--surface-tint-0)) var(--surface-2);
   }
 
   select, button.btn {
@@ -302,7 +376,7 @@
   .badge.done { background: var(--blue-bg); color: var(--blue); }
   .badge.failed { background: var(--red-bg); color: var(--red); }
   .badge.timeout { background: var(--amber-bg); color: var(--amber); }
-  .badge.stale { background: rgba(244,63,94,0.12); color: #fb7185; }
+  .badge.stale { background: var(--badge-stale-bg); color: var(--badge-stale-text); }
   .badge.unknown { background: var(--surface-3); color: var(--text-3); }
 
   .run-status .time {
@@ -461,14 +535,14 @@
     display: block;
     border-color: var(--red);
     background: var(--red-bg);
-    color: #fecaca;
+    color: var(--status-error-text);
   }
 
   .status-banner.info {
     display: block;
     border-color: var(--blue);
     background: var(--blue-bg);
-    color: #bfdbfe;
+    color: var(--status-info-text);
   }
 
   .filters {
@@ -477,7 +551,7 @@
     gap: 0.75rem;
     margin-bottom: 1rem;
     padding: 0.8rem;
-    background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0));
+    background: linear-gradient(180deg, var(--surface-tint-4), var(--surface-tint-0));
     border: 1px solid var(--border);
     border-radius: 10px;
   }
@@ -520,7 +594,7 @@
   .filters select:focus {
     outline: none;
     border-color: var(--blue);
-    box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+    box-shadow: 0 0 0 2px var(--focus-ring);
   }
 
   .filter-clear {
@@ -598,9 +672,9 @@
   }
 
   .view-toggle button.active {
-    background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.12));
-    border-color: rgba(59,130,246,0.42);
-    color: #dbeafe;
+    background: var(--accent-active-bg);
+    border-color: var(--accent-active-border);
+    color: var(--accent-active-text);
   }
   .view-toggle button:hover { background: var(--surface-3); color: var(--text-2); }
 
@@ -667,7 +741,7 @@
   .detail-sheet-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.55);
+    background: var(--sheet-backdrop);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;
@@ -687,7 +761,7 @@
     z-index: 190;
     display: flex;
     flex-direction: column;
-    box-shadow: -14px 0 36px rgba(0,0,0,0.45);
+    box-shadow: var(--sheet-shadow);
   }
 
   .detail-sheet.open { transform: translateX(0); }
@@ -739,8 +813,8 @@
   .page-link:hover { color: var(--text-2); background: var(--surface-2); }
   .page-link.active {
     color: var(--text);
-    background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.08));
-    border-color: rgba(59,130,246,0.38);
+    background: var(--accent-active-bg-soft);
+    border-color: var(--accent-active-border-soft);
   }
 
   .daily-page { max-width: 1240px; margin: 0 auto; }
@@ -982,6 +1056,7 @@
         </select>
       </div>
     </div>
+    <button class="btn" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle color theme">☀ Light</button>
     <button class="btn" onclick="refresh()" id="refreshBtn">↻ Refresh</button>
   </div>
 </div>
@@ -1102,6 +1177,7 @@ const detailCache = {};
 const PAGE_SIZE = 200;
 const STALE_RUN_THRESHOLD_MS = 15 * 60 * 1000;
 const STORAGE_KEY = 'agent-monitor-ui-v1';
+const THEME_STORAGE_KEY = 'agent-monitor-theme';
 
 function detectBasePath() {
   const path = window.location.pathname || '/';
@@ -1132,6 +1208,44 @@ async function fetchJsonWithFallback(endpoint) {
     }
   }
   throw lastErr || new Error('Request failed');
+}
+
+function getSystemThemePreference() {
+  try {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  } catch (_) {
+    return 'dark';
+  }
+}
+
+function applyTheme(theme) {
+  const normalized = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', normalized);
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.textContent = normalized === 'light' ? '☾ Dark' : '☀ Light';
+    btn.setAttribute('aria-label', normalized === 'light' ? 'Switch to dark mode' : 'Switch to light mode');
+  }
+}
+
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_STORAGE_KEY); } catch (_) {}
+  const theme = saved === 'light' || saved === 'dark' ? saved : getSystemThemePreference();
+  applyTheme(theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  const next = current === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { localStorage.setItem(THEME_STORAGE_KEY, next); } catch (_) {}
+  if (activePage === 'daily') renderDailyStats();
+}
+
+function cssVar(name, fallback) {
+  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return val || fallback;
 }
 
 // Helpers
@@ -1305,7 +1419,7 @@ function renderStats() {
   renderTokenDashboard(filtered);
 }
 
-function renderSparkline(values, color = '#3b82f6', height = 160) {
+function renderSparkline(values, color = cssVar('--chart-blue', '#3b82f6'), height = 160) {
   if (!values.length || values.every(v => v <= 0)) return '<div class="chart-empty">No data in selected filters.</div>';
   const w = 620;
   const h = height;
@@ -1314,11 +1428,11 @@ function renderSparkline(values, color = '#3b82f6', height = 160) {
   const pts = values.map((v, i) => `${20 + i * step},${h - 20 - ((h - 40) * v / maxV)}`).join(' ');
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">
     <polyline fill="none" stroke="${color}" stroke-width="2.5" points="${pts}" />
-    <polyline fill="${color}22" stroke="none" points="20,${h-20} ${pts} ${w-20},${h-20}" />
+    <polyline fill="${color}" fill-opacity="0.14" stroke="none" points="20,${h-20} ${pts} ${w-20},${h-20}" />
   </svg>`;
 }
 
-function renderBars(values, color = '#22c55e', height = 160) {
+function renderBars(values, color = cssVar('--chart-green', '#22c55e'), height = 160) {
   if (!values.length || values.every(v => v <= 0)) return '<div class="chart-empty">No data in selected filters.</div>';
   const w = 620, h = height, maxV = Math.max(...values, 1), gap = 3;
   const bw = Math.max(3, ((w - 30) / values.length) - gap);
@@ -1373,7 +1487,7 @@ function renderDailyStats() {
   const split = dailyStats.series?.runtimeSplitByAgent || [];
   const topAgents = dailyStats.breakdowns?.topAgentsByRuntime || [];
   const avgRuntime = dailyStats.breakdowns?.avgRuntimeByAgent || [];
-  const colors = ['#3b82f6','#22c55e','#f59e0b','#a855f7','#ef4444','#14b8a6','#f97316','#eab308'];
+  const colors = [cssVar('--chart-blue', '#3b82f6'), cssVar('--chart-green', '#22c55e'), cssVar('--chart-amber', '#f59e0b'), cssVar('--chart-purple', '#a855f7'), cssVar('--chart-red', '#ef4444'), cssVar('--chart-teal', '#14b8a6'), cssVar('--chart-orange', '#f97316'), cssVar('--chart-yellow', '#eab308')];
 
   summary.innerHTML = `
     <div class="stat"><div class="label">Runs (window)</div><div class="value">${fmtNum(totals.runCount || 0)}</div></div>
@@ -1383,12 +1497,12 @@ function renderDailyStats() {
   `;
 
   chartWrap.innerHTML = `
-    <div class="report-card"><h3>Runtime trend per day</h3><div class="chart-wrap">${renderSparkline(runtimeTrend.map(d => d.runtimeMs || 0), '#3b82f6')}</div></div>
-    <div class="report-card"><h3>Runs per day</h3><div class="chart-wrap">${renderBars(runsTrend.map(d => d.runCount || 0), '#22c55e')}</div></div>
+    <div class="report-card"><h3>Runtime trend per day</h3><div class="chart-wrap">${renderSparkline(runtimeTrend.map(d => d.runtimeMs || 0), cssVar('--chart-blue', '#3b82f6'))}</div></div>
+    <div class="report-card"><h3>Runs per day</h3><div class="chart-wrap">${renderBars(runsTrend.map(d => d.runCount || 0), cssVar('--chart-green', '#22c55e'))}</div></div>
     <div class="report-card"><h3>Runtime split by agent</h3><div class="chart-wrap">${renderStacked(split, dailyStats.agentIds || [], colors)}</div>
       <div class="stack-legend">${(dailyStats.agentIds||[]).map((a,i)=>`<span class="legend-item"><span class="legend-swatch" style="background:${colors[i%colors.length]}"></span>${esc(a)}</span>`).join('')}</div>
     </div>
-    <div class="report-card"><h3>Token trend (where available)</h3><div class="chart-wrap">${renderBars(tokenTrend.map(d => d.totalTokens || 0), '#a855f7')}</div></div>
+    <div class="report-card"><h3>Token trend (where available)</h3><div class="chart-wrap">${renderBars(tokenTrend.map(d => d.totalTokens || 0), cssVar('--chart-purple', '#a855f7'))}</div></div>
   `;
 
   breakdownWrap.innerHTML = `
@@ -1838,6 +1952,7 @@ function clearFilters() {
 }
 
 // Init
+initTheme();
 loadState();
 document.getElementById('searchInput').value = searchQuery;
 document.getElementById('statusFilter').value = statusFilter;
