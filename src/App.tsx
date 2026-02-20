@@ -47,11 +47,11 @@ export default function App() {
   const openDetail = async (id: string) => setSelectedRun(await fetchRunDetail(id))
 
   return (
-    <div className="min-h-screen">
+    <div className="app-shell">
       <HeaderControls page={page} setPage={setPage} laneMode={laneMode} setLaneMode={setLaneMode} interval={intervalSec} setIntervalSec={setIntervalSec} dark={dark} toggleTheme={() => setDark((d) => !d)} refresh={load} />
-      <main className="grid gap-4 p-4 lg:grid-cols-[17rem_1fr]">
+      <main className="layout-main">
         <AgentSidebar runs={runs} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} stateFilter={stateFilter} setStateFilter={setStateFilter} />
-        <section className="space-y-4">
+        <section className="space-y-3">
           <MetricCards runs={reporting?.totals.runCount ?? filteredRuns.length} runtimeMs={reporting?.totals.runtimeMs ?? 0} agents={reporting?.totals.agentCount ?? 0} />
           {page === 'monitor' ? (
             <LanesBoard runs={filteredRuns} laneMode={laneMode} onSelect={openDetail} selectedRun={selectedRun} stateFilter={stateFilter} />

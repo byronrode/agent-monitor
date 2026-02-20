@@ -18,8 +18,8 @@ export function AgentSidebar({ runs, selectedAgent, setSelectedAgent, stateFilte
   latestByAgent.forEach((r) => stateCounts[runState(r)]++)
 
   return (
-    <aside className="card h-fit min-w-64 space-y-3">
-      <div className="text-sm font-semibold">Agents</div>
+    <aside className="card sidebar-card h-fit min-w-64 space-y-3">
+      <div className="lane-title">Agents</div>
       <select className="btn w-full" value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)}>
         <option value="all">All agents</option>
         {[...latestByAgent.keys()].sort().map((a) => <option key={a} value={a}>{a}</option>)}

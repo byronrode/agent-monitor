@@ -22,8 +22,8 @@ export const runState = (run: Run, now = Date.now()): RunState => {
 }
 
 export const stateTone: Record<RunState, string> = {
-  running: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-  quiet: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-  stalled: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-  dead: 'bg-slate-200 text-slate-700 dark:bg-zinc-700 dark:text-zinc-200'
+  running: 'status-running',
+  quiet: 'status-quiet',
+  stalled: 'status-stalled',
+  dead: 'status-dead'
 }

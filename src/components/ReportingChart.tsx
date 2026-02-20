@@ -11,7 +11,7 @@ export function ReportingChart({ data }: { data?: Reporting }) {
 
   return (
     <div className="card">
-      <div className="mb-3 text-sm font-semibold">Runtime by day (stacked by agent)</div>
+      <div className="mb-3 topbar-title">Runtime by day (stacked by agent)</div>
       <div className="mb-3 flex flex-wrap gap-2">
         {agentIds.map((a, i) => (
           <button key={a} className="btn" onClick={() => setHidden((h) => ({ ...h, [a]: !h[a] }))}>
@@ -26,8 +26,8 @@ export function ReportingChart({ data }: { data?: Reporting }) {
           const total = d.agents.filter((x) => !hidden[x.agentId]).reduce((a, x) => a + x.runtimeMs, 0)
           return (
             <div key={d.date}>
-              <div className="mb-1 flex justify-between text-xs"><span>{d.date}</span><span>{Math.round(total / 60000)}m</span></div>
-              <div className="relative h-7 overflow-hidden rounded bg-slate-200 dark:bg-zinc-800">
+              <div className="mb-1 flex justify-between text-xs muted"><span>{d.date}</span><span>{Math.round(total / 60000)}m</span></div>
+              <div className="relative h-7 overflow-hidden rounded" style={{ background: 'var(--surface-3)', border: '1px solid var(--border)' }}>
                 {d.agents.map((a, i) => {
                   if (hidden[a.agentId]) return null
                   const w = (a.runtimeMs / max) * 100

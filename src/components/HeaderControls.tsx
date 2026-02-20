@@ -12,11 +12,12 @@ type Props = {
 
 export function HeaderControls(props: Props) {
   return (
-    <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+    <header className="topbar">
       <div>
-        <h1 className="text-lg font-semibold">Agent Monitor</h1>
+        <h1 className="topbar-title">Agent Monitor</h1>
+        <div className="topbar-subtitle">live orchestration dashboard</div>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="topbar-controls">
         <button className={`btn ${props.page === 'monitor' ? 'btn-primary' : ''}`} onClick={() => props.setPage('monitor')}>Monitor</button>
         <button className={`btn ${props.page === 'reporting' ? 'btn-primary' : ''}`} onClick={() => props.setPage('reporting')}>Reporting</button>
         <button className="btn" onClick={() => props.setLaneMode(props.laneMode === 'lanes' ? 'list' : 'lanes')}>{props.laneMode}</button>

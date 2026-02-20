@@ -9,11 +9,11 @@ export function MetricCards({ runs, runtimeMs, agents }: Props) {
     { label: 'Agents', value: agents.toString() }
   ]
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="metric-grid">
       {cards.map((c) => (
         <div className="card" key={c.label}>
-          <div className="text-xs text-slate-500 dark:text-zinc-400">{c.label}</div>
-          <div className="text-xl font-bold">{c.value}</div>
+          <div className="metric-label">{c.label}</div>
+          <div className="metric-value">{c.value}</div>
         </div>
       ))}
     </div>
