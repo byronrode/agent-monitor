@@ -45,6 +45,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1rem;
     padding: 1rem 2rem;
     border-bottom: 1px solid var(--border);
     background: var(--surface);
@@ -53,16 +54,62 @@
     z-index: 100;
   }
 
-  .topbar-left { display: flex; align-items: center; gap: 1rem; }
-  .topbar-left h1 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
-  .topbar-left .subtitle { color: var(--text-3); font-size: 0.8rem; font-family: var(--mono); }
+  .topbar-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+    min-width: 0;
+  }
 
-  .topbar-right { display: flex; align-items: center; gap: 1rem; }
+  .topbar-left h1 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; }
+
+  .subtitle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .topbar-left .subtitle {
+    color: var(--text-3);
+    font-size: 0.72rem;
+    font-family: var(--mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: min(52vw, 420px);
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .header-controls-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.3rem;
+  }
 
   .refresh-controls {
-    display: flex; align-items: center; gap: 0.5rem;
-    font-family: var(--mono); font-size: 0.75rem; color: var(--text-3);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-3);
   }
+
+  .refresh-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  #refreshBtn { white-space: nowrap; }
 
   select, button.btn {
     background: var(--surface-2);
@@ -71,6 +118,7 @@
     font-family: var(--mono);
     font-size: 0.75rem;
     padding: 0.4rem 0.75rem;
+    min-height: 2rem;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.15s;
@@ -454,16 +502,19 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     overflow: hidden;
+    flex-shrink: 0;
   }
 
   .view-toggle button {
-    background: var(--surface-2);
+    background: var(--surface);
     border: none;
     border-right: 1px solid var(--border);
     color: var(--text-3);
     font-family: var(--mono);
-    font-size: 0.7rem;
-    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 0.45rem 0.8rem;
+    min-height: 2rem;
     cursor: pointer;
   }
 
@@ -527,13 +578,64 @@
     /* Stack layout vertically */
     .layout { flex-direction: column; min-height: auto; }
 
-    /* Topbar: compact */
-    .topbar { padding: 0.75rem 1rem; }
-    .topbar-left h1 { font-size: 0.9rem; }
-    .topbar-left .subtitle { font-size: 0.7rem; }
-    .topbar-right { gap: 0.5rem; }
-    .topbar-right .btn { padding: 0.3rem 0.6rem; font-size: 0.7rem; }
-    .topbar-right select { padding: 0.3rem 0.5rem; font-size: 0.7rem; }
+    /* Topbar: compact + grouped controls */
+    .topbar {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0.75rem 1rem;
+      gap: 0.7rem;
+    }
+
+    .topbar-left h1 { font-size: 0.95rem; }
+    .subtitle-wrap { gap: 0.4rem; }
+    .topbar-left .subtitle {
+      max-width: 100%;
+      font-size: 0.68rem;
+      line-height: 1.2;
+    }
+
+    .topbar-right {
+      width: 100%;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: nowrap;
+    }
+
+    .header-controls-group {
+      flex: 1;
+      min-width: 0;
+      justify-content: space-between;
+      gap: 0.4rem;
+    }
+
+    .view-toggle button {
+      padding: 0.45rem 0.6rem;
+      font-size: 0.68rem;
+      min-height: 2.15rem;
+    }
+
+    .refresh-controls {
+      min-width: 0;
+      gap: 0.35rem;
+    }
+
+    .refresh-label { display: none; }
+
+    .refresh-controls select {
+      min-width: 0;
+      width: 100%;
+      max-width: 76px;
+      font-size: 0.68rem;
+      padding: 0.4rem 0.45rem;
+      min-height: 2.15rem;
+    }
+
+    #refreshBtn {
+      min-height: 2.15rem;
+      padding: 0.45rem 0.7rem;
+      font-size: 0.7rem;
+      flex-shrink: 0;
+    }
 
     /* Sidebar → horizontal scrollable pill bar */
     .sidebar {
@@ -612,9 +714,14 @@
   }
 
   @media (max-width: 400px) {
-    .topbar { padding: 0.5rem 0.75rem; }
-    .topbar-left h1 { font-size: 0.8rem; }
-    .view-toggle button { padding: 0.3rem 0.5rem; font-size: 0.65rem; }
+    .topbar { padding: 0.5rem 0.75rem; gap: 0.55rem; }
+    .topbar-left h1 { font-size: 0.82rem; }
+    .topbar-left .subtitle { font-size: 0.65rem; }
+    .topbar-right { gap: 0.4rem; }
+    .header-controls-group { padding: 0.22rem; gap: 0.3rem; }
+    .view-toggle button { padding: 0.4rem 0.5rem; font-size: 0.64rem; min-height: 2rem; }
+    .refresh-controls select { max-width: 68px; font-size: 0.65rem; min-height: 2rem; }
+    #refreshBtn { min-height: 2rem; padding: 0.4rem 0.55rem; font-size: 0.66rem; }
     .main { padding: 0.75rem; }
     .stats { gap: 0.35rem; }
     .stat { padding: 0.5rem; }
@@ -628,21 +735,26 @@
 <div class="topbar">
   <div class="topbar-left">
     <h1>Agent Monitor</h1>
-    <span class="subtitle" id="lastUpdate"></span>
+    <div class="subtitle-wrap">
+      <div class="live-dot" id="liveDot"></div>
+      <span class="subtitle" id="lastUpdate"></span>
+    </div>
   </div>
   <div class="topbar-right">
-    <div class="view-toggle">
-      <button class="active" onclick="setView('list')" id="viewList">List</button>
-      <button onclick="setView('lanes')" id="viewLanes">Lanes</button>
-    </div>
-    <div class="refresh-controls">
-      <div class="live-dot" id="liveDot"></div>
-      <select id="refreshInterval" onchange="setRefreshInterval()">
-        <option value="0">manual</option>
-        <option value="5">5s</option>
-        <option value="10" selected>10s</option>
-        <option value="30">30s</option>
-      </select>
+    <div class="header-controls-group">
+      <div class="view-toggle">
+        <button class="active" onclick="setView('list')" id="viewList">List</button>
+        <button onclick="setView('lanes')" id="viewLanes">Lanes</button>
+      </div>
+      <div class="refresh-controls">
+        <span class="refresh-label">Auto</span>
+        <select id="refreshInterval" onchange="setRefreshInterval()">
+          <option value="0">manual</option>
+          <option value="5">5s</option>
+          <option value="10" selected>10s</option>
+          <option value="30">30s</option>
+        </select>
+      </div>
     </div>
     <button class="btn" onclick="refresh()" id="refreshBtn">↻ Refresh</button>
   </div>
