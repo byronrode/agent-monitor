@@ -399,6 +399,54 @@
     color: #bfdbfe;
   }
 
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .filters input, .filters select { width: 100%; }
+
+  .token-dashboard {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .token-breakdown {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+
+  .token-breakdown .title {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+  }
+
+  .token-breakdown .row {
+    display:flex; justify-content:space-between; gap:0.5rem;
+    font-family: var(--mono); font-size:0.72rem; color: var(--text-2);
+    padding: 0.15rem 0;
+  }
+
+  .token-chips { display:flex; flex-wrap:wrap; gap:0.3rem; margin-top:0.4rem; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.12rem 0.45rem;
+    color: var(--text-2);
+    background: var(--surface-2);
+  }
+
   /* View toggle */
   .view-toggle {
     display: flex;
@@ -522,6 +570,8 @@
 
     /* Main content */
     .main { padding: 1rem; }
+    .filters { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .token-dashboard { grid-template-columns: 1fr; }
 
     /* Stats: 2×2 + 1 */
     .stats {
@@ -606,6 +656,25 @@
   <div class="main" id="mainContent">
     <div id="statusBanner" class="status-banner"></div>
     <div class="stats" id="stats"></div>
+    <div class="filters" id="filters">
+      <input id="searchInput" placeholder="Search label/task/model" />
+      <select id="statusFilter">
+        <option value="all">all statuses</option>
+        <option value="running">running</option>
+        <option value="done">done</option>
+        <option value="failed">failed</option>
+        <option value="timeout">timeout</option>
+      </select>
+      <select id="timeWindow">
+        <option value="0">all time</option>
+        <option value="1">last 1h</option>
+        <option value="6">last 6h</option>
+        <option value="24" selected>last 24h</option>
+        <option value="168">last 7d</option>
+      </select>
+      <button class="btn" onclick="clearFilters()">Clear filters</button>
+    </div>
+    <div class="token-dashboard" id="tokenDashboard"></div>
     <div id="content"></div>
   </div>
 </div>
@@ -615,11 +684,15 @@ let runs = [];
 let agents = [];
 let activeAgent = null; // null = all
 let currentView = 'list';
+let statusFilter = 'all';
+let searchQuery = '';
+let timeWindowHours = 24;
 let refreshTimer = null;
 let expandedRuns = {};
 let runsTotal = 0;
 let lastError = '';
 const PAGE_SIZE = 200;
+const STORAGE_KEY = 'agent-monitor-ui-v1';
 
 function detectBasePath() {
   const path = window.location.pathname || '/';
@@ -692,9 +765,94 @@ async function fetchRunDetail(runId) {
   return fetchJsonWithFallback(`/api/runs/${runId}`);
 }
 
+
+function fmtNum(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '-';
+  return new Intl.NumberFormat().format(n);
+}
+
+function formatTs(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  return d.toLocaleString();
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const st = JSON.parse(raw);
+    if (st.currentView === 'list' || st.currentView === 'lanes') currentView = st.currentView;
+    if (typeof st.activeAgent === 'string' || st.activeAgent === null) activeAgent = st.activeAgent;
+    if (typeof st.statusFilter === 'string') statusFilter = st.statusFilter;
+    if (typeof st.searchQuery === 'string') searchQuery = st.searchQuery;
+    if (Number.isFinite(st.timeWindowHours)) timeWindowHours = st.timeWindowHours;
+    if (Number.isFinite(st.refreshInterval)) {
+      const sel = document.getElementById('refreshInterval');
+      if (sel) sel.value = String(st.refreshInterval);
+    }
+  } catch (_) {}
+}
+
+function saveState() {
+  try {
+    const refreshInterval = parseInt(document.getElementById('refreshInterval')?.value || '10', 10);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      currentView,
+      activeAgent,
+      statusFilter,
+      searchQuery,
+      timeWindowHours,
+      refreshInterval
+    }));
+  } catch (_) {}
+}
+
+function getFilteredRuns() {
+  let filtered = activeAgent ? runs.filter(r => r.agentId === activeAgent) : [...runs];
+  if (statusFilter !== 'all') filtered = filtered.filter(r => r.status === statusFilter);
+  if (timeWindowHours > 0) {
+    const cutoff = Date.now() - (timeWindowHours * 3600 * 1000);
+    filtered = filtered.filter(r => !r.startedAt || r.startedAt >= cutoff);
+  }
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(r => `${r.label || ''} ${r.task || ''} ${r.agentId || ''} ${r.model || ''}`.toLowerCase().includes(q));
+  }
+  return filtered;
+}
+
+function renderTokenDashboard(filtered) {
+  const withTokens = filtered.filter(r => r.totalTokens != null || r.inputTokens != null || r.outputTokens != null);
+  const input = withTokens.reduce((s, r) => s + (r.inputTokens || 0), 0);
+  const output = withTokens.reduce((s, r) => s + (r.outputTokens || 0), 0);
+  const total = withTokens.reduce((s, r) => s + (r.totalTokens || ((r.inputTokens || 0) + (r.outputTokens || 0))), 0);
+
+  const byStatus = {};
+  const byAgent = {};
+  withTokens.forEach(r => {
+    byStatus[r.status] = (byStatus[r.status] || 0) + (r.totalTokens || 0);
+    byAgent[r.agentId] = (byAgent[r.agentId] || 0) + (r.totalTokens || 0);
+  });
+
+  const topRows = obj => Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v]) => `<div class="row"><span>${esc(k)}</span><span>${fmtNum(v)}</span></div>`).join('') || '<div class="row"><span>No token data</span><span>-</span></div>';
+
+  document.getElementById('tokenDashboard').innerHTML = `
+    <div class="token-breakdown"><div class="title">Tokens (window)</div>
+      <div class="row"><span>Runs with token data</span><span>${withTokens.length}/${filtered.length}</span></div>
+      <div class="row"><span>Input</span><span>${fmtNum(input)}</span></div>
+      <div class="row"><span>Output</span><span>${fmtNum(output)}</span></div>
+      <div class="row"><span>Total</span><span>${fmtNum(total)}</span></div>
+    </div>
+    <div class="token-breakdown"><div class="title">By status (total tokens)</div>${topRows(byStatus)}</div>
+    <div class="token-breakdown"><div class="title">By agent (total tokens)</div>${topRows(byAgent)}</div>
+  `;
+}
+
 // Render
 function renderStats() {
-  const filtered = activeAgent ? runs.filter(r => r.agentId === activeAgent) : runs;
+
+  const filtered = getFilteredRuns();
   const running = filtered.filter(r => r.status === 'running').length;
   const done = filtered.filter(r => r.status === 'done').length;
   const failed = filtered.filter(r => r.status === 'failed').length;
@@ -708,6 +866,7 @@ function renderStats() {
     <div class="stat"><div class="label">Timed Out</div><div class="value" style="color:var(--amber)">${timedout}</div></div>
     <div class="stat"><div class="label">Total Runtime</div><div class="value">${formatMs(totalRuntime)}</div></div>
   `;
+  renderTokenDashboard(filtered);
 }
 
 function renderAgentSidebar() {
@@ -776,6 +935,12 @@ function renderRunCard(r) {
             <span class="model-tag">${esc(modelShort)}</span>
           </div>
           <div class="task-preview">${esc(preview)}</div>
+          <div class="token-chips">
+            <span class="chip">in ${fmtNum(r.inputTokens)}</span>
+            <span class="chip">out ${fmtNum(r.outputTokens)}</span>
+            <span class="chip">total ${fmtNum(r.totalTokens)}</span>
+            <span class="chip">start ${esc(formatTs(r.startedAt))}</span>
+          </div>
         </div>
         <div class="run-meta">
           <span>${timeAgo(r.startedAt)}</span>
@@ -789,7 +954,7 @@ function renderRunCard(r) {
 }
 
 function renderListView() {
-  const filtered = activeAgent ? runs.filter(r => r.agentId === activeAgent) : runs;
+  const filtered = getFilteredRuns();
   const running = filtered.filter(r => r.status === 'running');
   const completed = filtered.filter(r => r.status !== 'running');
 
@@ -819,7 +984,7 @@ function renderListView() {
 }
 
 function renderLanesView() {
-  const filtered = activeAgent ? runs.filter(r => r.agentId === activeAgent) : runs;
+  const filtered = getFilteredRuns();
 
   // Group by agentId
   const groups = {};
@@ -862,6 +1027,8 @@ function renderLanesView() {
                 <span>${formatMs(r.runtimeMs)}</span>
                 <span>•</span>
                 <span>${timeAgo(r.startedAt)}</span>
+                <span>•</span>
+                <span>tok ${fmtNum(r.totalTokens)}</span>
               </div>
             </div>
           `).join('')}
@@ -895,6 +1062,18 @@ async function toggleRun(runId) {
     try {
       const detail = await fetchRunDetail(runId);
       let html = '';
+
+      // Run statistics
+      html += `<div class="detail-section">
+        <div class="detail-label">Run Stats</div>
+        <div class="detail-prompt">status: ${esc(detail.status || '-')}
+started: ${esc(formatTs(detail.startedAt))}
+ended: ${esc(formatTs(detail.endedAt))}
+duration: ${esc(formatMs(detail.runtimeMs))}
+input tokens: ${esc(String(detail.inputTokens ?? '-'))}
+output tokens: ${esc(String(detail.outputTokens ?? '-'))}
+total tokens: ${esc(String(detail.totalTokens ?? '-'))}</div>
+      </div>`;
 
       // Full prompt
       html += `<div class="detail-section">
@@ -958,6 +1137,7 @@ function render() {
   renderAgentSidebar();
   if (currentView === 'list') renderListView();
   else renderLanesView();
+  saveState();
 }
 
 // Actions
@@ -977,6 +1157,7 @@ function setRefreshInterval() {
   const val = parseInt(document.getElementById('refreshInterval').value);
   if (refreshTimer) clearInterval(refreshTimer);
   if (val > 0) refreshTimer = setInterval(refresh, val * 1000);
+  saveState();
 }
 
 async function refresh() {
@@ -1024,7 +1205,26 @@ async function loadMoreHistory() {
   }
 }
 
+function clearFilters() {
+  statusFilter = 'all';
+  searchQuery = '';
+  timeWindowHours = 24;
+  document.getElementById('statusFilter').value = statusFilter;
+  document.getElementById('searchInput').value = searchQuery;
+  document.getElementById('timeWindow').value = String(timeWindowHours);
+  render();
+}
+
 // Init
+loadState();
+document.getElementById('searchInput').value = searchQuery;
+document.getElementById('statusFilter').value = statusFilter;
+document.getElementById('timeWindow').value = String(timeWindowHours);
+document.getElementById('viewList').classList.toggle('active', currentView === 'list');
+document.getElementById('viewLanes').classList.toggle('active', currentView === 'lanes');
+document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim(); render(); });
+document.getElementById('statusFilter').addEventListener('change', (e) => { statusFilter = e.target.value; render(); });
+document.getElementById('timeWindow').addEventListener('change', (e) => { timeWindowHours = parseInt(e.target.value, 10) || 0; render(); });
 setStatus('Loading runs…', 'info');
 refresh();
 setRefreshInterval();

@@ -132,6 +132,9 @@ def init_db():
                 outcome_status TEXT,
                 outcome_json TEXT,
                 raw_json TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
                 created_at INTEGER,
                 updated_at INTEGER
             )
@@ -140,6 +143,100 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_run_history_started ON run_history(started_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_run_history_agent ON run_history(agent_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_run_history_status ON run_history(status)")
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(run_history)").fetchall()}
+        if "input_tokens" not in cols:
+            conn.execute("ALTER TABLE run_history ADD COLUMN input_tokens INTEGER")
+        if "output_tokens" not in cols:
+            conn.execute("ALTER TABLE run_history ADD COLUMN output_tokens INTEGER")
+        if "total_tokens" not in cols:
+            conn.execute("ALTER TABLE run_history ADD COLUMN total_tokens INTEGER")
+
+
+def as_int(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        n = int(value)
+        return n if n >= 0 else None
+    if isinstance(value, str):
+        s = value.strip().replace(",", "")
+        if not s:
+            return None
+        try:
+            n = int(float(s))
+            return n if n >= 0 else None
+        except ValueError:
+            return None
+    return None
+
+
+def extract_token_usage(run: dict, outcome: dict):
+    """Best-effort extraction of input/output/total token counts from varied schemas."""
+    candidates = []
+
+    def push_candidate(obj):
+        if isinstance(obj, dict):
+            candidates.append(obj)
+
+    push_candidate(run)
+    push_candidate(outcome)
+    for key in (
+        "usage",
+        "tokenUsage",
+        "token_usage",
+        "tokens",
+        "modelUsage",
+        "model_usage",
+        "metrics",
+        "stats",
+    ):
+        push_candidate((run or {}).get(key))
+        push_candidate((outcome or {}).get(key))
+
+    input_aliases = (
+        "inputTokens",
+        "input_tokens",
+        "promptTokens",
+        "prompt_tokens",
+        "requestTokens",
+        "request_tokens",
+    )
+    output_aliases = (
+        "outputTokens",
+        "output_tokens",
+        "completionTokens",
+        "completion_tokens",
+        "responseTokens",
+        "response_tokens",
+    )
+    total_aliases = ("totalTokens", "total_tokens", "tokens", "tokenCount", "token_count")
+
+    def get_from_aliases(obj, aliases):
+        for k in aliases:
+            if k in obj:
+                n = as_int(obj.get(k))
+                if n is not None:
+                    return n
+        return None
+
+    input_tokens = None
+    output_tokens = None
+    total_tokens = None
+
+    for c in candidates:
+        if input_tokens is None:
+            input_tokens = get_from_aliases(c, input_aliases)
+        if output_tokens is None:
+            output_tokens = get_from_aliases(c, output_aliases)
+        if total_tokens is None:
+            total_tokens = get_from_aliases(c, total_aliases)
+
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
+
+    return input_tokens, output_tokens, total_tokens
 
 
 def load_current_runs_file():
@@ -182,6 +279,7 @@ def sync_runs_to_db():
                 else (int(time.time() * 1000) - started if started and status == "running" else 0)
             )
             outcome = run.get("outcome", {}) or {}
+            input_tokens, output_tokens, total_tokens = extract_token_usage(run, outcome)
             session_key = run.get("childSessionKey", "")
 
             conn.execute(
@@ -189,8 +287,9 @@ def sync_runs_to_db():
                 INSERT INTO run_history (
                     run_id, label, agent_id, model, status, started_at, ended_at,
                     runtime_ms, timeout_seconds, task, session_key, outcome_status,
-                    outcome_json, raw_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    outcome_json, raw_json, input_tokens, output_tokens, total_tokens,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(run_id) DO UPDATE SET
                     label=excluded.label,
                     agent_id=excluded.agent_id,
@@ -205,6 +304,9 @@ def sync_runs_to_db():
                     outcome_status=excluded.outcome_status,
                     outcome_json=excluded.outcome_json,
                     raw_json=excluded.raw_json,
+                    input_tokens=excluded.input_tokens,
+                    output_tokens=excluded.output_tokens,
+                    total_tokens=excluded.total_tokens,
                     updated_at=excluded.updated_at
                 """,
                 (
@@ -222,6 +324,9 @@ def sync_runs_to_db():
                     outcome_status,
                     json.dumps(outcome, default=str),
                     json.dumps(run, default=str),
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
                     run.get("createdAt", started or now_ms),
                     now_ms,
                 ),
@@ -251,7 +356,8 @@ def query_runs(limit=200, offset=0, agent_id=None, status=None):
         rows = conn.execute(
             f"""
             SELECT run_id, label, agent_id, model, status, started_at, ended_at,
-                   runtime_ms, timeout_seconds, task, session_key, outcome_status
+                   runtime_ms, timeout_seconds, task, session_key, outcome_status,
+                   input_tokens, output_tokens, total_tokens
             FROM run_history
             {where_sql}
             ORDER BY started_at DESC
@@ -280,6 +386,9 @@ def query_runs(limit=200, offset=0, agent_id=None, status=None):
                     "timeoutSeconds": row["timeout_seconds"],
                     "task": row["task"] or "",
                     "sessionKey": row["session_key"] or "",
+                    "inputTokens": row["input_tokens"],
+                    "outputTokens": row["output_tokens"],
+                    "totalTokens": row["total_tokens"],
                     "outcome": {"status": row["outcome_status"] or "unknown"},
                 }
             )
@@ -368,6 +477,9 @@ def get_run_detail(run_id):
         "timeoutSeconds": row["timeout_seconds"],
         "task": row["task"] or "",
         "sessionKey": session_key,
+        "inputTokens": row["input_tokens"],
+        "outputTokens": row["output_tokens"],
+        "totalTokens": row["total_tokens"],
         "outcome": outcome,
         "messages": messages,
     }
