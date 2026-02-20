@@ -39,34 +39,34 @@ export function ReportingChart({ data, period, onPeriodChange }: { data?: Report
   const pieTotal = Math.max(1, pieData.reduce((a, b) => a + b.totalTokens, 0))
 
   return (
-    <div className="report-grid">
-      <div className="card report-card report-full">
-        <div className="report-head">
-          <div className="topbar-title">Usage by period (stacked by agent)</div>
-          <div className="view-toggle">
+    <div className="grid grid-cols-2 gap-4 max-lg:grid-cols-1">
+      <div className="col-span-full rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold">Usage by period (stacked by agent)</div>
+          <div className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5">
             {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
-              <button key={p} className={`control-btn ${period === p ? 'active' : ''}`} onClick={() => onPeriodChange(p)}>{p}</button>
+              <button key={p} className={`h-8 rounded-md border px-3 font-mono text-[0.7rem] ${period === p ? 'border-[var(--accent-active-border)] bg-[var(--accent-active-bg)] text-[var(--accent-active-text)]' : 'border-transparent text-[var(--text-3)]'}`} onClick={() => onPeriodChange(p)}>{p}</button>
             ))}
           </div>
         </div>
 
-        <div className="legend-row">
+        <div className="mb-3 flex flex-wrap gap-1.5">
           {agentIds.map((a, i) => (
-            <button key={a} className="btn" onClick={() => setHidden((h) => ({ ...h, [a]: !h[a] }))}>
+            <button key={a} className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 font-mono text-[0.68rem]" onClick={() => setHidden((h) => ({ ...h, [a]: !h[a] }))}>
               <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: palette[i % palette.length], opacity: hidden[a] ? 0.4 : 1 }} />
               {a}
             </button>
           ))}
         </div>
 
-        <div className="stacked-wrap" onMouseLeave={() => setHover(null)}>
+        <div className="relative flex flex-col gap-2" onMouseLeave={() => setHover(null)}>
           {bars.map((d) => {
             let accum = 0
             const total = d.agents.filter((x) => !hidden[x.agentId]).reduce((a, x) => a + x.totalTokens, 0)
             return (
-              <div key={d.period} className="stack-row">
-                <div className="stack-label">{d.period}</div>
-                <div className="stack-bar">
+              <div key={d.period} className="grid grid-cols-[90px_1fr_88px] items-center gap-2">
+                <div className="font-mono text-[0.72rem] text-[var(--text-2)]">{d.period}</div>
+                <div className="relative h-5 overflow-hidden rounded border border-[var(--border)] bg-[var(--surface-3)]">
                   {d.agents.map((a, i) => {
                     if (hidden[a.agentId]) return null
                     const w = (a.totalTokens / max) * 100
@@ -75,34 +75,34 @@ export function ReportingChart({ data, period, onPeriodChange }: { data?: Report
                     return (
                       <div
                         key={a.agentId}
-                        className="stack-seg"
+                        className="absolute inset-y-0"
                         style={{ left: `${left}%`, width: `${w}%`, background: palette[i % palette.length] }}
                         onMouseMove={(e) => setHover({ x: e.clientX + 8, y: e.clientY + 8, text: `${a.agentId} • ${formatNumber(a.totalTokens)} tokens • ${a.runCount} runs` })}
                       />
                     )
                   })}
                 </div>
-                <div className="stack-value">{formatNumber(total)}</div>
+                <div className="font-mono text-[0.72rem] text-[var(--text-2)]">{formatNumber(total)}</div>
               </div>
             )
           })}
-          {hover ? <div className="chart-tip" style={{ left: hover.x, top: hover.y }}>{hover.text}</div> : null}
+          {hover ? <div className="fixed z-[210] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 font-mono text-[0.7rem]" style={{ left: hover.x, top: hover.y }}>{hover.text}</div> : null}
         </div>
       </div>
 
-      <div className="card report-card">
-        <div className="topbar-title mb-3">All-time token usage</div>
-        <div className="stats token-stats">
-          <div className="stat status-total"><div className="label">Input</div><div className="value">{formatNumber(allTime?.inputTokens || 0)}</div></div>
-          <div className="stat status-total"><div className="label">Output</div><div className="value">{formatNumber(allTime?.outputTokens || 0)}</div></div>
-          <div className="stat status-total"><div className="label">Total</div><div className="value">{formatNumber(allTime?.totalTokens || 0)}</div><div className="subvalue">{formatNumber(allTime?.runCount || 0)} runs</div></div>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="mb-3 text-sm font-semibold">All-time token usage</div>
+        <div className="grid grid-cols-3 gap-2 max-md:grid-cols-1">
+          <Tile label="Input" value={formatNumber(allTime?.inputTokens || 0)} />
+          <Tile label="Output" value={formatNumber(allTime?.outputTokens || 0)} />
+          <Tile label="Total" value={formatNumber(allTime?.totalTokens || 0)} sub={`${formatNumber(allTime?.runCount || 0)} runs`} />
         </div>
       </div>
 
-      <div className="card report-card">
-        <div className="topbar-title mb-3">All-time split by agent</div>
-        <div className="pie-wrap">
-          <svg viewBox="0 0 42 42" className="pie">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="mb-3 text-sm font-semibold">All-time split by agent</div>
+        <div className="grid grid-cols-[160px_1fr] items-center gap-3 max-md:grid-cols-1">
+          <svg viewBox="0 0 42 42" className="h-40 w-40 -rotate-90 max-md:mx-auto">
             {(() => {
               let offset = 0
               return pieData.map((row, i) => {
@@ -118,31 +118,41 @@ export function ReportingChart({ data, period, onPeriodChange }: { data?: Report
             {pieData.map((row, i) => (
               <div key={row.agentId} className="flex items-center justify-between gap-2">
                 <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: palette[i % palette.length] }} />{row.agentId}</span>
-                <span className="muted">{Math.round((row.totalTokens / pieTotal) * 100)}%</span>
+                <span className="text-[var(--text-3)]">{Math.round((row.totalTokens / pieTotal) * 100)}%</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="card report-card">
-        <div className="report-head">
-          <div className="topbar-title">Leaderboard</div>
-          <div className="view-toggle">
-            <button className={`control-btn ${leaderboardMode === 'tokens' ? 'active' : ''}`} onClick={() => setLeaderboardMode('tokens')}>tokens</button>
-            <button className={`control-btn ${leaderboardMode === 'runs' ? 'active' : ''}`} onClick={() => setLeaderboardMode('runs')}>runs</button>
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold">Leaderboard</div>
+          <div className="flex gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5">
+            <button className={`h-8 rounded-md border px-3 font-mono text-[0.7rem] ${leaderboardMode === 'tokens' ? 'border-[var(--accent-active-border)] bg-[var(--accent-active-bg)] text-[var(--accent-active-text)]' : 'border-transparent text-[var(--text-3)]'}`} onClick={() => setLeaderboardMode('tokens')}>tokens</button>
+            <button className={`h-8 rounded-md border px-3 font-mono text-[0.7rem] ${leaderboardMode === 'runs' ? 'border-[var(--accent-active-border)] bg-[var(--accent-active-bg)] text-[var(--accent-active-text)]' : 'border-transparent text-[var(--text-3)]'}`} onClick={() => setLeaderboardMode('runs')}>runs</button>
           </div>
         </div>
         <div className="space-y-2">
           {leaderboard.map((row, idx) => (
-            <div key={row.agentId} className="leader-row">
-              <div className="leader-rank">#{idx + 1}</div>
-              <div className="leader-id">{row.agentId}</div>
-              <div className="leader-val">{formatNumber(valueForAgent(row, leaderboardMode))}</div>
+            <div key={row.agentId} className="grid grid-cols-[52px_1fr_auto] items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2">
+              <div className="font-mono text-[0.72rem] text-[var(--text-3)]">#{idx + 1}</div>
+              <div className="text-[0.82rem]">{row.agentId}</div>
+              <div className="font-mono text-[0.8rem]">{formatNumber(valueForAgent(row, leaderboardMode))}</div>
             </div>
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-lg border border-l-[3px] border-l-[var(--blue)] border-[var(--border)] bg-[var(--surface-2)] p-3">
+      <div className="text-[0.7rem] uppercase tracking-[0.08em] text-[var(--text-3)]">{label}</div>
+      <div className="mt-1 font-mono text-lg font-bold">{value}</div>
+      {sub ? <div className="font-mono text-[0.65rem] text-[var(--text-3)]">{sub}</div> : null}
     </div>
   )
 }
