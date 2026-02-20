@@ -890,8 +890,9 @@
     }
 
     .topbar-right {
-      --mobile-header-control-height: 2.15rem;
+      --mobile-header-control-height: 48px;
       --mobile-header-control-pad-x: 0.55rem;
+      --mobile-header-control-pad-y: 0;
       width: 100%;
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto auto;
@@ -916,14 +917,15 @@
     }
 
     .view-toggle button,
+     .refresh-label,
     .refresh-controls select,
-    .header-utility-btn {
+    .header-utility-btn.btn {
       height: var(--mobile-header-control-height);
       min-height: var(--mobile-header-control-height);
       box-sizing: border-box;
       line-height: 1;
-      padding-top: 0;
-      padding-bottom: 0;
+      padding-top: var(--mobile-header-control-pad-y);
+      padding-bottom: var(--mobile-header-control-pad-y);
     }
 
     .view-toggle button {
@@ -941,7 +943,16 @@
       gap: 0;
     }
 
-    .refresh-label { display: none; }
+    .refresh-label {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding-left: var(--mobile-header-control-pad-x);
+      padding-right: var(--mobile-header-control-pad-x);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-2);
+    }
 
     .refresh-controls select {
       min-width: 0;
@@ -951,6 +962,10 @@
       padding-left: var(--mobile-header-control-pad-x);
       padding-right: calc(var(--mobile-header-control-pad-x) + 0.35rem);
       border-radius: 8px;
+      appearance: none;
+      -webkit-appearance: none;
+      background-position: right 0.45rem center;
+      line-height: 1;
     }
 
     #themeToggle { grid-area: theme; }
@@ -961,6 +976,8 @@
       min-width: var(--mobile-header-control-height);
       font-size: 0.82rem;
       flex-shrink: 0;
+      padding-left: 0;
+      padding-right: 0;
     }
 
     .filters-toggle-btn {
@@ -1081,7 +1098,7 @@
     .brand-mark { width: 31px; height: 31px; padding: 2px; border-radius: 6px; }
     .topbar-left h1 { font-size: 0.82rem; }
     .topbar-left .subtitle { font-size: 0.65rem; }
-    .topbar-right { --mobile-header-control-height: 2rem; --mobile-header-control-pad-x: 0.5rem; gap: 0.34rem; }
+    .topbar-right { --mobile-header-control-height: 48px; --mobile-header-control-pad-x: 0.5rem; --mobile-header-control-pad-y: 0; gap: 0.34rem; }
     .view-toggle button { font-size: 0.64rem; }
     .refresh-controls select { max-width: 82px; font-size: 0.65rem; }
     .header-utility-btn { font-size: 0.72rem; }
