@@ -25,9 +25,11 @@ A lightweight dashboard for monitoring OpenClaw agent runs. Shows agent lanes, t
 git clone https://github.com/byronrode/agent-monitor.git
 cd agent-monitor
 
-# Install UI build tooling + compile Tailwind CSS
+# Install frontend dependencies
 npm install
-npm run build:css
+
+# Build React app into ./static (served by Python backend)
+npm run build
 
 # Run (defaults to ~/.openclaw, port 8787)
 python3 server.py
@@ -38,22 +40,25 @@ OPENCLAW_DIR=/path/to/.openclaw PORT=9090 python3 server.py
 
 Then open `http://localhost:8787` in your browser.
 
+### Frontend development
+
+```bash
+npm run dev
+```
+
+For backend + built static assets (production-like), run `npm run build` then `python3 server.py`.
+
 Reverse-proxy subpath support is built in. The UI and API resolve correctly from both:
 - `http://localhost:8787`
 - `http://localhost:8787/agent-monitor`
 
-## UI Styling (Tailwind + Safari/Arc consistency)
+## Frontend stack
 
-- Tailwind CSS is wired through a local build pipeline (`tailwindcss` + `@tailwindcss/cli`).
-- Source file: `static/tailwind.input.css`
-- Built file: `static/tailwind.css`
-- Build command: `npm run build:css`
-
-To neutralize Safari/Arc form-control differences, header controls now use a shared reset/height utility (`ui-control-reset` + `ui-control-height`) and explicit `appearance: none`/`-webkit-appearance: none`, with fixed heights at breakpoints:
-- Desktop (`>=768px`): `32px`
-- Mobile (`<768px`): `48px`
-
-This applies to List/Lanes toggle buttons, interval select, theme button, and refresh button so they render at matching visible height.
+- React + TypeScript (Vite)
+- Tailwind CSS design system primitives
+- Build output goes to `./static` so existing `server.py` static hosting continues to work
+- Dark/light mode preference is persisted in localStorage
+- Works at both `/` and `/agent-monitor` paths while keeping `/api/*` and `/agent-monitor/api/*` compatibility
 
 ## Run as a systemd User Service (Daemon)
 
