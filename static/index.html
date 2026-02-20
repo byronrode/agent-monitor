@@ -57,6 +57,18 @@
     --chart-yellow: #eab308;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+    /* Spacing scale */
+    --space-2xs: 0.25rem;  /* 4px */
+    --space-xs: 0.5rem;    /* 8px */
+    --space-sm: 0.75rem;   /* 12px */
+    --space-md: 1rem;      /* 16px */
+    --space-lg: 1.5rem;    /* 24px */
+    --space-xl: 2rem;      /* 32px */
+
+    --container-pad: var(--space-xl);
+    --section-gap: var(--space-lg);
+    --grid-gutter: var(--space-sm);
     color-scheme: dark;
   }
 
@@ -322,7 +334,7 @@
   /* Main content */
   .main {
     flex: 1;
-    padding: 1.5rem 2rem;
+    padding: var(--section-gap) var(--container-pad);
     overflow-y: auto;
   }
 
@@ -330,8 +342,8 @@
   .stats {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 0.75rem;
-    margin-bottom: 2rem;
+    gap: var(--grid-gutter);
+    margin-bottom: var(--section-gap);
   }
 
   .stat {
@@ -349,8 +361,8 @@
   .section-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-sm);
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -365,7 +377,7 @@
     font-family: var(--mono);
   }
 
-  .run-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 2rem; }
+  .run-list { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--section-gap); }
 
   .run-card {
     background: var(--surface);
@@ -566,8 +578,8 @@
 
   .status-banner {
     display: none;
-    margin-bottom: 1rem;
-    padding: 0.75rem 1rem;
+    margin-bottom: var(--section-gap);
+    padding: var(--space-sm) var(--space-md);
     border-radius: 8px;
     border: 1px solid var(--border);
     font-size: 0.8rem;
@@ -590,9 +602,9 @@
   .filters {
     display: grid;
     grid-template-columns: minmax(0, 1.8fr) repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-    padding: 0.8rem;
+    gap: var(--grid-gutter);
+    margin-bottom: var(--section-gap);
+    padding: var(--space-sm);
     background: linear-gradient(180deg, var(--surface-tint-4), var(--surface-tint-0));
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -652,8 +664,8 @@
   .token-dashboard {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
+    gap: var(--grid-gutter);
+    margin-bottom: var(--section-gap);
   }
 
   .token-breakdown {
@@ -724,9 +736,9 @@
   /* Lanes view */
   .lanes {
     display: flex;
-    gap: 1rem;
+    gap: var(--grid-gutter);
     overflow-x: auto;
-    padding-bottom: 1rem;
+    padding-bottom: var(--space-md);
   }
 
   .lane {
@@ -751,14 +763,20 @@
   .lane-header .lane-name { font-weight: 600; font-size: 0.85rem; }
   .lane-header .lane-count { font-family: var(--mono); font-size: 0.7rem; color: var(--text-3); }
 
-  .lane-body { padding: 0.5rem; max-height: 70vh; overflow-y: auto; }
+  .lane-body {
+    padding: var(--space-sm);
+    max-height: 70vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
 
   .lane-card {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 0.75rem;
-    margin-bottom: 0.5rem;
+    padding: var(--space-sm);
     cursor: pointer;
     transition: border-color 0.15s;
   }
@@ -775,8 +793,8 @@
 
   .page-nav {
     display: flex;
-    gap: 0.25rem;
-    padding: 0.48rem 2rem 0.5rem;
+    gap: var(--space-2xs);
+    padding: var(--space-xs) var(--container-pad);
     border-bottom: 1px solid var(--border);
     background: var(--surface);
   }
@@ -861,8 +879,8 @@
   }
 
   .daily-page { max-width: 1240px; margin: 0 auto; }
-  .report-grid { display:grid; grid-template-columns: 1.1fr 1.1fr; gap:0.9rem; margin-bottom:0.9rem; }
-  .report-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:0.85rem; }
+  .report-grid { display:grid; grid-template-columns: 1.1fr 1.1fr; gap:var(--grid-gutter); margin-bottom:var(--grid-gutter); }
+  .report-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:var(--space-sm); }
   .report-card h3 { font-size:0.78rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-3); margin-bottom:0.6rem; }
   .chart-wrap { width:100%; overflow:hidden; }
   .chart-empty { color:var(--text-3); font-size:0.8rem; padding:1.5rem 0.4rem; text-align:center; }
@@ -873,10 +891,17 @@
   .stack-legend { display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.4rem; }
   .legend-item { font-size:0.68rem; color:var(--text-2); display:flex; align-items:center; gap:0.3rem; }
   .legend-swatch { width:10px; height:10px; border-radius:3px; }
+  .metric-scope-label { margin-bottom: var(--space-sm); display:inline-flex; }
 
   /* ── Mobile ── */
   @media (max-width: 767px) {
-    .page-nav { padding: 0.45rem 1rem 0.45rem; overflow-x: auto; }
+    :root {
+      --container-pad: var(--space-md);
+      --section-gap: var(--space-md);
+      --grid-gutter: var(--space-sm);
+    }
+
+    .page-nav { padding: var(--space-xs) var(--container-pad); overflow-x: auto; }
     .page-link { white-space: nowrap; }
 
     /* Stack layout vertically */
@@ -1051,11 +1076,11 @@
     }
 
     /* Main content */
-    .main { padding: 1rem; }
+    .main { padding: var(--section-gap) var(--container-pad); }
     .filters {
       grid-template-columns: 1fr;
-      gap: 0.6rem;
-      padding: 0.65rem;
+      gap: var(--grid-gutter);
+      padding: var(--space-sm);
     }
     .filter-field { gap: 0.3rem; }
     .filters input,
@@ -1066,8 +1091,8 @@
     /* Stats: 2×2 + 1 */
     .stats {
       grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      margin-bottom: 1.25rem;
+      gap: var(--grid-gutter);
+      margin-bottom: var(--section-gap);
     }
     .stat { padding: 0.75rem; }
     .stat .label { font-size: 0.6rem; }
@@ -1115,6 +1140,12 @@
   }
 
   @media (max-width: 400px) {
+    :root {
+      --container-pad: var(--space-sm);
+      --section-gap: var(--space-sm);
+      --grid-gutter: var(--space-xs);
+    }
+
     .topbar { padding: 0.48rem 0.75rem; gap: 0.5rem; }
     .brand-mark { width: 31px; height: 31px; padding: 2px; border-radius: 6px; }
     .topbar-left h1 { font-size: 0.82rem; }
@@ -1124,10 +1155,10 @@
     .refresh-controls select { max-width: 82px; font-size: 0.65rem; }
     .header-utility-btn { font-size: 0.72rem; }
     .filters-toggle-btn { font-size: 0.58rem; min-height: 1.64rem; padding: 0 0.55rem; }
-    .main { padding: 0.75rem; }
-    .filters { padding: 0.55rem; gap: 0.45rem; }
+    .main { padding: var(--section-gap) var(--container-pad); }
+    .filters { padding: var(--space-xs); gap: var(--grid-gutter); }
     .filter-label { font-size: 0.6rem; }
-    .stats { gap: 0.35rem; }
+    .stats { gap: var(--grid-gutter); }
     .stat { padding: 0.5rem; }
     .stat .value { font-size: 1.15rem; }
     .run-card-header { padding: 0.7rem; }
@@ -1219,13 +1250,14 @@
 </div>
 
 <div class="main daily-page" id="dailyPage" style="display:none;">
-  <div class="filters" style="margin-bottom:1rem;">
+  <div class="filters">
     <div class="filter-field">
       <label class="filter-label" for="dailyWindow">Date window</label>
       <select id="dailyWindow">
+        <option value="1" selected>last 24 hours</option>
         <option value="7">last 7 days</option>
         <option value="14">last 14 days</option>
-        <option value="30" selected>last 30 days</option>
+        <option value="30">last 30 days</option>
         <option value="90">last 90 days</option>
       </select>
     </div>
@@ -1244,10 +1276,33 @@
       </select>
     </div>
     <div class="filter-field">
+      <label class="filter-label" for="reportScope">Metric scope</label>
+      <select id="reportScope">
+        <option value="completed">completed only</option>
+        <option value="all" selected>all statuses</option>
+        <option value="active">active only</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label class="filter-label" for="includeRunning">Include running</label>
+      <select id="includeRunning">
+        <option value="0">no</option>
+        <option value="1" selected>yes</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label class="filter-label" for="includeStale">Include stale running</label>
+      <select id="includeStale">
+        <option value="0">no</option>
+        <option value="1" selected>yes</option>
+      </select>
+    </div>
+    <div class="filter-field">
       <label class="filter-label">Actions</label>
       <button class="btn" onclick="refreshDailyStats()">Reload reporting</button>
     </div>
   </div>
+  <div class="chip metric-scope-label" id="metricScopeLabel"></div>
   <div class="stats" id="dailyStatsSummary"></div>
   <div class="report-grid" id="reportCharts"></div>
   <div class="report-grid" id="reportBreakdowns"></div>
@@ -1276,10 +1331,17 @@ let expandedRuns = {};
 let runsTotal = 0;
 let lastError = '';
 let activePage = 'monitor';
-let dailyWindowDays = 30;
+let dailyWindowDays = 1;
 let dailyStats = null;
 let reportAgentFilter = "all";
 let reportStatusFilter = "all";
+let reportScope = "all";
+let includeRunning = true;
+let includeStaleRunning = true;
+let staleMinutes = 15;
+let metricSummary = null;
+const hiddenAgentsInStack = new Set();
+let stackedMetric = 'runtimeMs';
 let activeSheetRunId = null;
 let mobileFiltersCollapsed = false;
 const detailCache = {};
@@ -1461,8 +1523,29 @@ async function fetchRunDetail(runId) {
 }
 
 async function fetchDailyStats(days = dailyWindowDays) {
-  const params = new URLSearchParams({ days: String(days), agentId: reportAgentFilter, status: reportStatusFilter });
+  const params = new URLSearchParams({
+    days: String(days),
+    agentId: reportAgentFilter,
+    status: reportStatusFilter,
+    scope: reportScope,
+    includeRunning: includeRunning ? '1' : '0',
+    includeStaleRunning: includeStaleRunning ? '1' : '0',
+    staleMinutes: String(staleMinutes)
+  });
   return fetchJsonWithFallback(`/api/reports/dashboard?${params.toString()}`);
+}
+
+async function fetchMetricSummary(days = dailyWindowDays) {
+  const params = new URLSearchParams({
+    days: String(days),
+    agentId: reportAgentFilter,
+    status: reportStatusFilter,
+    scope: reportScope,
+    includeRunning: includeRunning ? '1' : '0',
+    includeStaleRunning: includeStaleRunning ? '1' : '0',
+    staleMinutes: String(staleMinutes)
+  });
+  return fetchJsonWithFallback(`/api/metrics/summary?${params.toString()}`);
 }
 
 function fmtNum(n) {
@@ -1490,6 +1573,9 @@ function loadState() {
     if (Number.isFinite(st.dailyWindowDays)) dailyWindowDays = st.dailyWindowDays;
     if (typeof st.reportAgentFilter === 'string') reportAgentFilter = st.reportAgentFilter;
     if (typeof st.reportStatusFilter === 'string') reportStatusFilter = st.reportStatusFilter;
+    if (typeof st.reportScope === 'string') reportScope = st.reportScope;
+    includeRunning = !!st.includeRunning;
+    includeStaleRunning = !!st.includeStaleRunning;
     if (Number.isFinite(st.refreshInterval)) {
       const sel = document.getElementById('refreshInterval');
       if (sel) sel.value = String(st.refreshInterval);
@@ -1510,6 +1596,9 @@ function saveState() {
       dailyWindowDays,
       reportAgentFilter,
       reportStatusFilter,
+      reportScope,
+      includeRunning,
+      includeStaleRunning,
       refreshInterval
     }));
   } catch (_) {}
@@ -1639,27 +1728,63 @@ function renderBars(values, color = cssVar('--chart-green', '#22c55e'), height =
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">${bars}</svg>`;
 }
 
-function renderStacked(runtimeSplit, agentIds, colors, height = 170) {
+function renderStacked(runtimeSplit, agentIds, colors, height = 190) {
   if (!runtimeSplit.length) return '<div class="chart-empty">No data in selected filters.</div>';
-  const values = runtimeSplit.map(d => d.agents.reduce((s,a)=>s+(a.runtimeMs||0),0));
-  if (values.every(v => v <= 0)) return '<div class="chart-empty">No runtime data in selected filters.</div>';
-  const w = 620, h = height, gap = 2;
+  const metricKey = stackedMetric || 'runtimeMs';
+  const values = runtimeSplit.map(d => d.agents.reduce((s,a)=>s+Number(a[metricKey]||0),0));
+  if (values.every(v => v <= 0)) return '<div class="chart-empty">No stacked data in selected filters.</div>';
+  const w = 700, h = height, gap = 3;
   const maxV = Math.max(...values, 1);
-  const bw = Math.max(3, ((w - 30) / runtimeSplit.length) - gap);
+  const bw = Math.max(6, ((w - 40) / runtimeSplit.length) - gap);
   let bars = '';
+  let ticks = '';
   runtimeSplit.forEach((day, i) => {
-    let yCursor = h - 14;
-    const x = 16 + i * (bw + gap);
+    let yCursor = h - 18;
+    const x = 20 + i * (bw + gap);
     agentIds.forEach((aid, idx) => {
+      if (hiddenAgentsInStack.has(aid)) return;
       const item = (day.agents || []).find(a => a.agentId === aid);
-      const v = item ? (item.runtimeMs || 0) : 0;
+      const v = item ? Number(item[metricKey] || 0) : 0;
       if (!v) return;
-      const bh = ((h - 24) * v / maxV);
+      const bh = ((h - 34) * v / maxV);
       yCursor -= bh;
-      bars += `<rect x="${x}" y="${yCursor}" width="${bw}" height="${bh}" fill="${colors[idx % colors.length]}" rx="1" />`;
+      const tooltip = `${day.date} • ${aid} • ${metricKey === 'runCount' ? (fmtNum(v) + ' runs') : formatMs(v)}`;
+      bars += `<rect data-day="${day.date}" data-agent="${aid}" x="${x}" y="${yCursor}" width="${bw}" height="${bh}" fill="${colors[idx % colors.length]}" rx="1"><title>${tooltip}</title></rect>`;
+    });
+    bars += `<rect data-day-hit="${day.date}" x="${x}" y="6" width="${bw}" height="${h-20}" fill="transparent" style="cursor:pointer"></rect>`;
+    if (i % Math.max(1, Math.floor(runtimeSplit.length / 8)) === 0) {
+      ticks += `<text x="${x + (bw/2)}" y="${h - 4}" text-anchor="middle" font-size="10" fill="${cssVar('--text-3', '#71717a')}">${day.date.slice(5)}</text>`;
+    }
+  });
+  return `<svg id="stackedDailySvg" viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">${bars}${ticks}</svg>`;
+}
+
+function renderScopeLabel() {
+  const el = document.getElementById('metricScopeLabel');
+  if (!el) return;
+  const scopeText = reportScope === 'completed' ? 'completed+failed+timeout' : (reportScope === 'active' ? 'running only' : 'all statuses');
+  const run = metricSummary?.totals?.runCount ?? '-';
+  const runtime = formatMs(metricSummary?.totals?.runtimeMs || 0);
+  el.textContent = `Window: last ${dailyWindowDays}d • scope: ${scopeText} • include running: ${includeRunning ? 'yes' : 'no'} • include stale: ${includeStaleRunning ? 'yes' : 'no'} • runs: ${run} • runtime: ${runtime}`;
+}
+
+function wireStackedInteractions() {
+  const svg = document.getElementById('stackedDailySvg');
+  if (!svg) return;
+  svg.querySelectorAll('rect[data-day-hit]').forEach(el => {
+    el.addEventListener('click', () => {
+      const day = el.getAttribute('data-day-hit');
+      if (!day) return;
+      setPage('monitor');
+      timeWindowHours = dailyWindowDays * 24;
+      const tw = document.getElementById('timeWindow');
+      if (tw) tw.value = String(timeWindowHours);
+      searchQuery = day;
+      const search = document.getElementById('searchInput');
+      if (search) search.value = day;
+      render();
     });
   });
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none">${bars}</svg>`;
 }
 
 function renderDailyStats() {
@@ -1686,15 +1811,17 @@ function renderDailyStats() {
   summary.innerHTML = `
     <div class="stat"><div class="label">Runs (window)</div><div class="value">${fmtNum(totals.runCount || 0)}</div></div>
     <div class="stat"><div class="label">Runtime (window)</div><div class="value">${formatMs(totals.runtimeMs || 0)}</div></div>
-    <div class="stat"><div class="label">Agents</div><div class="value">${fmtNum(totals.agents || 0)}</div></div>
-    <div class="stat"><div class="label">Total Tokens</div><div class="value">${fmtNum(totals.totalTokens || 0)}</div><div class="detail">${fmtNum(totals.runsWithTokens || 0)} runs with token data</div></div>
+    <div class="stat"><div class="label">Agents</div><div class="value">${fmtNum((totals.agentCount ?? totals.agents) || 0)}</div></div>
+    <div class="stat"><div class="label">Total Tokens</div><div class="value">${fmtNum(totals.totalTokens || 0)}</div><div class="detail">${fmtNum((totals.runsWithTokenData ?? totals.runsWithTokens) || 0)} runs with token data</div></div>
   `;
 
   chartWrap.innerHTML = `
     <div class="report-card"><h3>Runtime trend per day</h3><div class="chart-wrap">${renderSparkline(runtimeTrend.map(d => d.runtimeMs || 0), cssVar('--chart-blue', '#3b82f6'))}</div></div>
     <div class="report-card"><h3>Runs per day</h3><div class="chart-wrap">${renderBars(runsTrend.map(d => d.runCount || 0), cssVar('--chart-green', '#22c55e'))}</div></div>
-    <div class="report-card"><h3>Runtime split by agent</h3><div class="chart-wrap">${renderStacked(split, dailyStats.agentIds || [], colors)}</div>
-      <div class="stack-legend">${(dailyStats.agentIds||[]).map((a,i)=>`<span class="legend-item"><span class="legend-swatch" style="background:${colors[i%colors.length]}"></span>${esc(a)}</span>`).join('')}</div>
+    <div class="report-card"><h3>Daily usage by agent (stacked)</h3>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:0.4rem"><select id="stackedMetric" style="max-width:170px"><option value="runtimeMs">runtime</option><option value="runCount">run count</option></select></div>
+      <div class="chart-wrap">${renderStacked(split, dailyStats.agentIds || [], colors)}</div>
+      <div class="stack-legend">${(dailyStats.agentIds||[]).map((a,i)=>`<button type="button" class="legend-item" data-agent="${esc(a)}" style="background:transparent;border:1px solid var(--border);border-radius:999px;padding:0.12rem 0.45rem;cursor:pointer;opacity:${hiddenAgentsInStack.has(a)?0.45:1}"><span class="legend-swatch" style="background:${colors[i%colors.length]}"></span>${esc(a)}</button>`).join('')}</div>
     </div>
     <div class="report-card"><h3>Token trend (where available)</h3><div class="chart-wrap">${renderBars(tokenTrend.map(d => d.totalTokens || 0), cssVar('--chart-purple', '#a855f7'))}</div></div>
   `;
@@ -1713,6 +1840,21 @@ function renderDailyStats() {
       ${(avgRuntime.length ? avgRuntime : []).slice(0,10).map(a => `<tr><td>${esc(a.agentId)}</td><td class="num">${formatMs(a.avgRuntimeMs)}</td><td class="num">${fmtNum(a.runCount)}</td></tr>`).join('') || '<tr><td colspan="3">No data</td></tr>'}
     </tbody></table></div>
   `;
+
+  renderScopeLabel();
+  const metricSel = document.getElementById('stackedMetric');
+  if (metricSel) {
+    metricSel.value = stackedMetric;
+    metricSel.onchange = () => { stackedMetric = metricSel.value; renderDailyStats(); };
+  }
+  document.querySelectorAll('.stack-legend [data-agent]').forEach(btn => {
+    btn.onclick = () => {
+      const aid = btn.getAttribute('data-agent');
+      if (hiddenAgentsInStack.has(aid)) hiddenAgentsInStack.delete(aid); else hiddenAgentsInStack.add(aid);
+      renderDailyStats();
+    };
+  });
+  wireStackedInteractions();
 }
 
 
@@ -2125,7 +2267,10 @@ async function refresh() {
 
 async function refreshDailyStats() {
   try {
-    dailyStats = await fetchDailyStats(dailyWindowDays);
+    [dailyStats, metricSummary] = await Promise.all([
+      fetchDailyStats(dailyWindowDays),
+      fetchMetricSummary(dailyWindowDays)
+    ]);
     const agentSel = document.getElementById('reportAgent');
     if (agentSel) {
       const current = reportAgentFilter || 'all';
@@ -2178,6 +2323,9 @@ document.getElementById('statusFilter').value = statusFilter;
 document.getElementById('timeWindow').value = String(timeWindowHours);
 document.getElementById('dailyWindow').value = String(dailyWindowDays);
 document.getElementById('reportStatus').value = reportStatusFilter;
+document.getElementById('reportScope').value = reportScope;
+document.getElementById('includeRunning').value = includeRunning ? '1' : '0';
+document.getElementById('includeStale').value = includeStaleRunning ? '1' : '0';
 document.getElementById('viewList').classList.toggle('active', currentView === 'list');
 document.getElementById('viewLanes').classList.toggle('active', currentView === 'lanes');
 document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim(); render(); });
@@ -2195,6 +2343,21 @@ document.getElementById('reportAgent').addEventListener('change', async (e) => {
 });
 document.getElementById('reportStatus').addEventListener('change', async (e) => {
   reportStatusFilter = e.target.value || 'all';
+  await refreshDailyStats();
+  render();
+});
+document.getElementById('reportScope').addEventListener('change', async (e) => {
+  reportScope = e.target.value || 'completed';
+  await refreshDailyStats();
+  render();
+});
+document.getElementById('includeRunning').addEventListener('change', async (e) => {
+  includeRunning = e.target.value === '1';
+  await refreshDailyStats();
+  render();
+});
+document.getElementById('includeStale').addEventListener('change', async (e) => {
+  includeStaleRunning = e.target.value === '1';
   await refreshDailyStats();
   render();
 });
