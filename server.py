@@ -35,6 +35,7 @@ OPENCLAW_DIR = Path(os.environ.get("OPENCLAW_DIR", os.path.expanduser("~/.opencl
 STATIC_DIR = Path(__file__).parent / "static"
 DB_PATH = Path(os.environ.get("RUN_HISTORY_DB", str(OPENCLAW_DIR / "subagents" / "run_history.db")))
 RETENTION_RAW = os.environ.get("RUN_HISTORY_RETENTION_DAYS", "90").strip().lower()
+BASE_PATH = (os.environ.get("BASE_PATH", "").strip() or "/agent-monitor").rstrip("/")
 
 
 def parse_retention_days(raw: str):
@@ -89,6 +90,26 @@ def compute_status(run: dict):
 def get_agent_id(session_key: str):
     parts = (session_key or "").split(":")
     return parts[1] if len(parts) >= 2 else "unknown"
+
+
+def normalize_request_path(path: str) -> str:
+    """Support both direct root routes and optional reverse-proxy subpath routes."""
+    if not path:
+        return "/"
+
+    path = path.rstrip("/") or "/"
+    prefixes = ["/agent-monitor"]
+    if BASE_PATH and BASE_PATH not in prefixes:
+        prefixes.insert(0, BASE_PATH)
+
+    for prefix in prefixes:
+        if path == prefix:
+            return "/"
+        if path.startswith(prefix + "/"):
+            stripped = path[len(prefix) :]
+            return stripped.rstrip("/") or "/"
+
+    return path
 
 
 def init_db():
@@ -377,7 +398,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
+        path = normalize_request_path(parsed.path)
         q = parse_qs(parsed.query)
 
         if path == "/api/agents":
@@ -397,7 +418,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.json_response(detail)
             else:
                 self.send_error(404)
-        elif path in ("", "/"):
+        elif path in ("", "/", "/index.html"):
             self.path = "/index.html"
             super().do_GET()
         else:

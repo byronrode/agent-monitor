@@ -34,6 +34,10 @@ OPENCLAW_DIR=/path/to/.openclaw PORT=9090 python3 server.py
 
 Then open `http://localhost:8787` in your browser.
 
+Reverse-proxy subpath support is built in. The UI and API resolve correctly from both:
+- `http://localhost:8787`
+- `http://localhost:8787/agent-monitor`
+
 ## Run as a systemd User Service (Daemon)
 
 Use this setup to keep Agent Monitor running in the background.
@@ -106,6 +110,7 @@ sqlite3 ~/.openclaw/subagents/run_history.db 'select count(*) from run_history;'
 | `PORT` | `8787` | Server port |
 | `RUN_HISTORY_DB` | `$OPENCLAW_DIR/subagents/run_history.db` | SQLite database file path |
 | `RUN_HISTORY_RETENTION_DAYS` | `90` | Retention days (`0`, `-1`, `none`, `off`, `unlimited` = keep forever) |
+| `BASE_PATH` | `/agent-monitor` | Optional reverse-proxy subpath to also accept (in addition to `/`) |
 
 ## API
 

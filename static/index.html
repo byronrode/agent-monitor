@@ -376,6 +376,29 @@
     color: var(--text-3);
   }
 
+  .status-banner {
+    display: none;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+
+  .status-banner.error {
+    display: block;
+    border-color: var(--red);
+    background: var(--red-bg);
+    color: #fecaca;
+  }
+
+  .status-banner.info {
+    display: block;
+    border-color: var(--blue);
+    background: var(--blue-bg);
+    color: #bfdbfe;
+  }
+
   /* View toggle */
   .view-toggle {
     display: flex;
@@ -581,6 +604,7 @@
     <div id="agentList"></div>
   </div>
   <div class="main" id="mainContent">
+    <div id="statusBanner" class="status-banner"></div>
     <div class="stats" id="stats"></div>
     <div id="content"></div>
   </div>
@@ -594,7 +618,36 @@ let currentView = 'list';
 let refreshTimer = null;
 let expandedRuns = {};
 let runsTotal = 0;
+let lastError = '';
 const PAGE_SIZE = 200;
+
+function detectBasePath() {
+  const path = window.location.pathname || '/';
+  const clean = path.replace(/\/+$/, '') || '/';
+  if (clean === '/' || clean === '/index.html') return '';
+  if (clean.endsWith('/index.html')) return clean.replace(/\/index\.html$/, '');
+  return clean;
+}
+
+const baseCandidates = (() => {
+  const detected = detectBasePath();
+  return detected ? [detected, ''] : [''];
+})();
+
+async function fetchJsonWithFallback(endpoint) {
+  let lastErr = null;
+  for (const base of baseCandidates) {
+    const url = `${base}${endpoint}`;
+    try {
+      const resp = await fetch(url, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText} (${url})`);
+      return await resp.json();
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('Request failed');
+}
 
 // Helpers
 const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -628,18 +681,15 @@ function taskFirstLine(task) {
 // API
 async function fetchRuns(offset = 0, limit = PAGE_SIZE) {
   const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
-  const resp = await fetch(`/api/runs?${params.toString()}`);
-  return resp.json();
+  return fetchJsonWithFallback(`/api/runs?${params.toString()}`);
 }
 
 async function fetchAgents() {
-  const resp = await fetch('/api/agents');
-  return resp.json();
+  return fetchJsonWithFallback('/api/agents');
 }
 
 async function fetchRunDetail(runId) {
-  const resp = await fetch(`/api/runs/${runId}`);
-  return resp.json();
+  return fetchJsonWithFallback(`/api/runs/${runId}`);
 }
 
 // Render
@@ -892,6 +942,17 @@ async function toggleRun(runId) {
   }
 }
 
+function setStatus(message = '', kind = 'info') {
+  const banner = document.getElementById('statusBanner');
+  if (!message) {
+    banner.className = 'status-banner';
+    banner.textContent = '';
+    return;
+  }
+  banner.className = `status-banner ${kind}`;
+  banner.textContent = message;
+}
+
 function render() {
   renderStats();
   renderAgentSidebar();
@@ -926,11 +987,23 @@ async function refresh() {
     const [runsResp, agentsResp] = await Promise.all([fetchRuns(0, PAGE_SIZE), fetchAgents()]);
     runs = Array.isArray(runsResp) ? runsResp : (runsResp.items || []);
     runsTotal = Array.isArray(runsResp) ? runs.length : (runsResp.total || runs.length);
-    agents = agentsResp;
+    agents = Array.isArray(agentsResp) ? agentsResp : [];
+    lastError = '';
+    setStatus('');
     document.getElementById('lastUpdate').textContent = `updated ${new Date().toLocaleTimeString()} • showing ${runs.length}/${runsTotal}`;
     render();
+    if (runs.length === 0) {
+      setStatus('No runs found yet. Waiting for agent activity…', 'info');
+    }
   } catch(e) {
+    lastError = e?.message || String(e);
     console.error('Refresh failed:', e);
+    setStatus(`Could not load runs. ${lastError}. Check proxy/base path and retry.`, 'error');
+    if (runs.length === 0) {
+      document.getElementById('stats').innerHTML = '';
+      document.getElementById('agentList').innerHTML = '';
+      document.getElementById('content').innerHTML = '<div class="empty">Unable to load data. Tap refresh or verify API route.</div>';
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = '↻ Refresh';
@@ -952,6 +1025,7 @@ async function loadMoreHistory() {
 }
 
 // Init
+setStatus('Loading runs…', 'info');
 refresh();
 setRefreshInterval();
 </script>
