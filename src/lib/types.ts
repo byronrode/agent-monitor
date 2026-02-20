@@ -36,12 +36,36 @@ export type RunsResponse = {
   offset: number
 }
 
+export type ReportingAgentUsage = {
+  agentId: string
+  runCount: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+
 export type Reporting = {
   windowDays: number
   totals: { runCount: number; runtimeMs: number; agentCount: number; totalTokens?: number }
   series: {
     runtimeTrend: Array<{ date: string; runtimeMs: number }>
     runtimeSplitByAgent: Array<{ date: string; agents: Array<{ agentId: string; runtimeMs: number; runCount: number }> }>
+    usageStacked?: {
+      period: 'daily' | 'weekly' | 'monthly'
+      bucketCount: number
+      items: Array<{ period: string; totalTokens: number; runCount: number; agents: ReportingAgentUsage[] }>
+    }
+  }
+  breakdowns?: {
+    agentUsagePie?: ReportingAgentUsage[]
+    leaderboard?: ReportingAgentUsage[]
+  }
+  allTime?: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+    runCount: number
+    runsWithTokenData: number
   }
   agentIds: string[]
 }

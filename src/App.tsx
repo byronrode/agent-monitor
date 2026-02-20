@@ -23,6 +23,7 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [timeWindow, setTimeWindow] = useState('24')
   const [lastUpdate, setLastUpdate] = useState('')
+  const [reportPeriod, setReportPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily')
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -34,8 +35,10 @@ export default function App() {
     const r = await fetchRuns(params)
     setRuns(r.items)
     setLastUpdate(new Date().toLocaleTimeString())
-    const days = page === 'reporting' ? '14' : '1'
-    const rp = await fetchReporting(new URLSearchParams({ days, scope: 'all', includeRunning: '1', includeStaleRunning: '1' }))
+    const reportDays = reportPeriod === 'daily' ? '14' : reportPeriod === 'weekly' ? '84' : '365'
+    const bucketCount = reportPeriod === 'daily' ? '14' : reportPeriod === 'weekly' ? '12' : '12'
+    const days = page === 'reporting' ? reportDays : '1'
+    const rp = await fetchReporting(new URLSearchParams({ days, period: reportPeriod, bucketCount, scope: 'all', includeRunning: '1', includeStaleRunning: '1' }))
     setReporting(rp)
   }
 
@@ -44,7 +47,7 @@ export default function App() {
     if (intervalSec <= 0) return
     const id = setInterval(load, intervalSec * 1000)
     return () => clearInterval(id)
-  }, [intervalSec, page])
+  }, [intervalSec, page, reportPeriod])
 
   const filteredRuns = useMemo(() => {
     let list = [...runs]
@@ -97,7 +100,7 @@ export default function App() {
           </main>
         </div>
       ) : (
-        <main className="main daily-page"><ReportingChart data={reporting} /></main>
+        <main className="main daily-page"><ReportingChart data={reporting} period={reportPeriod} onPeriodChange={setReportPeriod} /></main>
       )}
       <DetailSheet run={selectedRun} close={() => setSelectedRun(undefined)} />
     </div>

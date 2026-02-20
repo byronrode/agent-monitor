@@ -523,7 +523,7 @@ def query_daily_stats(days=7):
 
 
 def _build_scope_filters(days=1, agent_id=None, status=None, scope="completed", include_running=False, include_stale=False, stale_minutes=15):
-    days = max(1, min(int(days or 1), 180))
+    days = max(1, min(int(days or 1), 730))
     now_ms = int(time.time() * 1000)
     cutoff = now_ms - days * 24 * 60 * 60 * 1000
     stale_cutoff = now_ms - max(1, int(stale_minutes or 15)) * 60 * 1000
@@ -610,13 +610,24 @@ def query_metric_summary(days=1, agent_id=None, status=None, scope="all", includ
         },
     }
 
-def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15):
+def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15, period="daily", bucket_count=14):
     sync_runs_to_db()
     cfg = _build_scope_filters(days, agent_id, status, scope, include_running, include_stale, stale_minutes)
     days = cfg["days"]
     now_ms = cfg["now_ms"]
     where_sql = cfg["where_sql"]
     args = cfg["args"]
+
+    period = (period or "daily").lower()
+    if period not in ("daily", "weekly", "monthly"):
+        period = "daily"
+    bucket_count = max(1, min(int(bucket_count or 14), 60))
+
+    period_sql = {
+        "daily": "strftime('%Y-%m-%d', started_at / 1000, 'unixepoch', 'localtime')",
+        "weekly": "strftime('%Y-W%W', started_at / 1000, 'unixepoch', 'localtime')",
+        "monthly": "strftime('%Y-%m', started_at / 1000, 'unixepoch', 'localtime')",
+    }[period]
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
@@ -654,6 +665,29 @@ def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", i
             args,
         ).fetchall()
 
+        usage_period_rows = conn.execute(
+            f"""
+            SELECT
+                {period_sql} AS period_key,
+                COALESCE(agent_id, 'unknown') AS agent_id,
+                COUNT(*) AS run_count,
+                SUM(COALESCE(total_tokens,
+                    CASE
+                        WHEN input_tokens IS NOT NULL OR output_tokens IS NOT NULL
+                            THEN COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                        ELSE 0
+                    END
+                )) AS token_total,
+                SUM(COALESCE(input_tokens, 0)) AS input_tokens,
+                SUM(COALESCE(output_tokens, 0)) AS output_tokens
+            FROM run_history
+            WHERE {where_sql}
+            GROUP BY period_key, agent_id
+            ORDER BY period_key ASC, agent_id ASC
+            """,
+            args,
+        ).fetchall()
+
         status_rows = conn.execute(
             f"""
             SELECT status, COUNT(*) AS count
@@ -682,6 +716,70 @@ def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", i
             ORDER BY runtime_ms DESC
             """,
             args,
+        ).fetchall()
+
+        # all-time / unbounded for reporting blocks
+        all_time_where = ["started_at IS NOT NULL"]
+        all_time_args = []
+        if agent_id and agent_id != "all":
+            all_time_where.append("agent_id = ?")
+            all_time_args.append(agent_id)
+        if status and status != "all":
+            all_time_where.append("status = ?")
+            all_time_args.append(status)
+        elif scope == "completed":
+            all_time_where.append("status IN ('done','failed','timeout')")
+        elif scope == "active":
+            all_time_where.append("status = 'running'")
+        if not include_running:
+            all_time_where.append("status != 'running'")
+        elif not include_stale:
+            stale_cutoff = cfg["now_ms"] - max(1, int(stale_minutes or 15)) * 60 * 1000
+            all_time_where.append("(status != 'running' OR COALESCE(last_heartbeat_at, started_at, 0) >= ?)")
+            all_time_args.append(stale_cutoff)
+
+        all_time_where_sql = " AND ".join(all_time_where)
+
+        all_time_tokens_row = conn.execute(
+            f"""
+            SELECT
+                SUM(COALESCE(input_tokens, 0)) AS input_tokens,
+                SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+                SUM(COALESCE(total_tokens,
+                    CASE
+                        WHEN input_tokens IS NOT NULL OR output_tokens IS NOT NULL
+                            THEN COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                        ELSE 0
+                    END
+                )) AS total_tokens,
+                COUNT(*) AS run_count,
+                SUM(CASE WHEN total_tokens IS NOT NULL OR input_tokens IS NOT NULL OR output_tokens IS NOT NULL THEN 1 ELSE 0 END) AS runs_with_token_data
+            FROM run_history
+            WHERE {all_time_where_sql}
+            """,
+            all_time_args,
+        ).fetchone()
+
+        all_time_agent_rows = conn.execute(
+            f"""
+            SELECT
+                COALESCE(agent_id, 'unknown') AS agent_id,
+                COUNT(*) AS run_count,
+                SUM(COALESCE(input_tokens, 0)) AS input_tokens,
+                SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+                SUM(COALESCE(total_tokens,
+                    CASE
+                        WHEN input_tokens IS NOT NULL OR output_tokens IS NOT NULL
+                            THEN COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)
+                        ELSE 0
+                    END
+                )) AS token_total
+            FROM run_history
+            WHERE {all_time_where_sql}
+            GROUP BY agent_id
+            ORDER BY token_total DESC, run_count DESC, agent_id ASC
+            """,
+            all_time_args,
         ).fetchall()
 
     by_day = {}
@@ -713,6 +811,34 @@ def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", i
             agent_totals[aid] = {"runtimeMs": 0, "runCount": 0}
         agent_totals[aid]["runtimeMs"] += runtime_ms
         agent_totals[aid]["runCount"] += runs
+
+    usage_map = {}
+    usage_agents = set()
+    for row in usage_period_rows:
+        key = row["period_key"]
+        aid = row["agent_id"] or "unknown"
+        usage_agents.add(aid)
+        if key not in usage_map:
+            usage_map[key] = {}
+        usage_map[key][aid] = {
+            "agentId": aid,
+            "runCount": int(row["run_count"] or 0),
+            "inputTokens": int(row["input_tokens"] or 0),
+            "outputTokens": int(row["output_tokens"] or 0),
+            "totalTokens": int(row["token_total"] or 0),
+        }
+
+    sorted_keys = sorted(usage_map.keys())[-bucket_count:]
+    usage_stacked = []
+    all_usage_agents = sorted(usage_agents)
+    for key in sorted_keys:
+        agents = [usage_map[key].get(aid, {"agentId": aid, "runCount": 0, "inputTokens": 0, "outputTokens": 0, "totalTokens": 0}) for aid in all_usage_agents]
+        usage_stacked.append({
+            "period": key,
+            "totalTokens": sum(a["totalTokens"] for a in agents),
+            "runCount": sum(a["runCount"] for a in agents),
+            "agents": agents,
+        })
 
     status_distribution = {"running": 0, "done": 0, "failed": 0, "timeout": 0}
     for row in status_rows:
@@ -773,6 +899,17 @@ def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", i
         for aid, vals in sorted(agent_totals.items(), key=lambda x: x[1]["runtimeMs"], reverse=True)
     ]
 
+    all_time_agents = [
+        {
+            "agentId": row["agent_id"] or "unknown",
+            "runCount": int(row["run_count"] or 0),
+            "inputTokens": int(row["input_tokens"] or 0),
+            "outputTokens": int(row["output_tokens"] or 0),
+            "totalTokens": int(row["token_total"] or 0),
+        }
+        for row in all_time_agent_rows
+    ]
+
     totals = {
         "runCount": sum(v["runCount"] for v in agent_totals.values()),
         "runtimeMs": sum(v["runtimeMs"] for v in agent_totals.values()),
@@ -801,11 +938,25 @@ def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", i
             "runtimeSplitByAgent": runtime_split,
             "runsTrend": runs_trend,
             "tokenTrend": token_trend,
+            "usageStacked": {
+                "period": period,
+                "bucketCount": bucket_count,
+                "items": usage_stacked,
+            },
         },
         "breakdowns": {
             "topAgentsByRuntime": top_agents[:8],
             "statusDistribution": status_distribution,
             "avgRuntimeByAgent": avg_runtime_by_agent,
+            "agentUsagePie": all_time_agents,
+            "leaderboard": all_time_agents,
+        },
+        "allTime": {
+            "inputTokens": int((all_time_tokens_row["input_tokens"] if all_time_tokens_row else 0) or 0),
+            "outputTokens": int((all_time_tokens_row["output_tokens"] if all_time_tokens_row else 0) or 0),
+            "totalTokens": int((all_time_tokens_row["total_tokens"] if all_time_tokens_row else 0) or 0),
+            "runCount": int((all_time_tokens_row["run_count"] if all_time_tokens_row else 0) or 0),
+            "runsWithTokenData": int((all_time_tokens_row["runs_with_token_data"] if all_time_tokens_row else 0) or 0),
         },
         "agentIds": agent_ids,
     }
@@ -982,10 +1133,12 @@ class Handler(SimpleHTTPRequestHandler):
             agent_id = q.get("agentId", [None])[0]
             status = q.get("status", [None])[0]
             scope = q.get("scope", ["all"])[0]
+            period = q.get("period", ["daily"])[0]
+            bucket_count = int(q.get("bucketCount", ["14"])[0])
             include_running = q.get("includeRunning", ["1"])[0] in ("1", "true", "yes")
             include_stale = q.get("includeStaleRunning", ["1"])[0] in ("1", "true", "yes")
             stale_minutes = int(q.get("staleMinutes", ["15"])[0])
-            self.json_response(query_reporting_dashboard(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes))
+            self.json_response(query_reporting_dashboard(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes, period=period, bucket_count=bucket_count))
         elif path == "/api/metrics/summary":
             days = int(q.get("days", ["1"])[0])
             agent_id = q.get("agentId", [None])[0]
