@@ -520,21 +520,103 @@ def query_daily_stats(days=7):
     }
 
 
-def query_reporting_dashboard(days=30, agent_id=None, status=None):
-    sync_runs_to_db()
-    days = max(1, min(int(days or 30), 180))
+
+
+def _build_scope_filters(days=1, agent_id=None, status=None, scope="completed", include_running=False, include_stale=False, stale_minutes=15):
+    days = max(1, min(int(days or 1), 180))
     now_ms = int(time.time() * 1000)
     cutoff = now_ms - days * 24 * 60 * 60 * 1000
+    stale_cutoff = now_ms - max(1, int(stale_minutes or 15)) * 60 * 1000
 
     where = ["started_at IS NOT NULL", "started_at >= ?"]
     args = [cutoff]
+
     if agent_id and agent_id != "all":
         where.append("agent_id = ?")
         args.append(agent_id)
+
     if status and status != "all":
         where.append("status = ?")
         args.append(status)
-    where_sql = " AND ".join(where)
+    else:
+        if scope == "completed":
+            where.append("status IN ('done','failed','timeout')")
+        elif scope == "active":
+            where.append("status = 'running'")
+
+    if not include_running:
+        where.append("status != 'running'")
+    elif not include_stale:
+        where.append("(status != 'running' OR COALESCE(last_heartbeat_at, started_at, 0) >= ?)")
+        args.append(stale_cutoff)
+
+    return {
+        "days": days,
+        "now_ms": now_ms,
+        "cutoff": cutoff,
+        "where_sql": " AND ".join(where),
+        "args": args,
+        "scope": scope,
+        "include_running": bool(include_running),
+        "include_stale": bool(include_stale),
+        "stale_minutes": max(1, int(stale_minutes or 15)),
+    }
+
+
+def query_metric_summary(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15):
+    sync_runs_to_db()
+    cfg = _build_scope_filters(days, agent_id, status, scope, include_running, include_stale, stale_minutes)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            f"""
+            SELECT
+                COUNT(*) AS run_count,
+                COUNT(DISTINCT COALESCE(agent_id, 'unknown')) AS agent_count,
+                SUM(COALESCE(runtime_ms,
+                    CASE
+                        WHEN ended_at IS NOT NULL AND started_at IS NOT NULL AND ended_at >= started_at
+                            THEN (ended_at - started_at)
+                        ELSE 0
+                    END
+                )) AS runtime_ms,
+                SUM(CASE
+                    WHEN total_tokens IS NOT NULL OR input_tokens IS NOT NULL OR output_tokens IS NOT NULL
+                        THEN 1
+                    ELSE 0
+                END) AS runs_with_token_data
+            FROM run_history
+            WHERE {cfg['where_sql']}
+            """,
+            cfg["args"],
+        ).fetchone()
+
+    return {
+        "windowDays": cfg["days"],
+        "filters": {
+            "agentId": agent_id or "all",
+            "status": status or "all",
+            "scope": cfg["scope"],
+            "includeRunning": cfg["include_running"],
+            "includeStaleRunning": cfg["include_stale"],
+            "staleMinutes": cfg["stale_minutes"],
+        },
+        "totals": {
+            "runCount": int((row["run_count"] if row else 0) or 0),
+            "runtimeMs": int((row["runtime_ms"] if row else 0) or 0),
+            "agentCount": int((row["agent_count"] if row else 0) or 0),
+            "runsWithTokenData": int((row["runs_with_token_data"] if row else 0) or 0),
+        },
+    }
+
+def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15):
+    sync_runs_to_db()
+    cfg = _build_scope_filters(days, agent_id, status, scope, include_running, include_stale, stale_minutes)
+    days = cfg["days"]
+    now_ms = cfg["now_ms"]
+    where_sql = cfg["where_sql"]
+    args = cfg["args"]
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
@@ -604,6 +686,7 @@ def query_reporting_dashboard(days=30, agent_id=None, status=None):
 
     by_day = {}
     day_agent_runtime = {}
+    day_agent_runs = {}
     agent_totals = {}
 
     for row in daily_rows:
@@ -617,12 +700,14 @@ def query_reporting_dashboard(days=30, agent_id=None, status=None):
         if day not in by_day:
             by_day[day] = {"runtimeMs": 0, "runCount": 0, "tokenTotal": 0, "tokenRuns": 0}
             day_agent_runtime[day] = {}
+            day_agent_runs[day] = {}
 
         by_day[day]["runtimeMs"] += runtime_ms
         by_day[day]["runCount"] += runs
         by_day[day]["tokenTotal"] += int(token_total or 0)
         by_day[day]["tokenRuns"] += token_runs
         day_agent_runtime[day][aid] = runtime_ms
+        day_agent_runs[day][aid] = runs
 
         if aid not in agent_totals:
             agent_totals[aid] = {"runtimeMs": 0, "runCount": 0}
@@ -666,7 +751,14 @@ def query_reporting_dashboard(days=30, agent_id=None, status=None):
     runtime_split = [
         {
             "date": d,
-            "agents": [{"agentId": aid, "runtimeMs": int(day_agent_runtime.get(d, {}).get(aid, 0))} for aid in agent_ids],
+            "agents": [
+                {
+                    "agentId": aid,
+                    "runtimeMs": int(day_agent_runtime.get(d, {}).get(aid, 0)),
+                    "runCount": int(day_agent_runs.get(d, {}).get(aid, 0)),
+                }
+                for aid in agent_ids
+            ],
         }
         for d in day_labels
     ]
@@ -685,9 +777,11 @@ def query_reporting_dashboard(days=30, agent_id=None, status=None):
         "runCount": sum(v["runCount"] for v in agent_totals.values()),
         "runtimeMs": sum(v["runtimeMs"] for v in agent_totals.values()),
         "agents": len(agent_ids),
+        "agentCount": len(agent_ids),
         "days": days,
         "totalTokens": sum(item["totalTokens"] for item in token_trend),
         "runsWithTokens": sum(item["runsWithTokens"] for item in token_trend),
+        "runsWithTokenData": sum(item["runsWithTokens"] for item in token_trend),
     }
 
     return {
@@ -695,6 +789,10 @@ def query_reporting_dashboard(days=30, agent_id=None, status=None):
         "filters": {
             "agentId": agent_id or "all",
             "status": status or "all",
+            "scope": cfg["scope"],
+            "includeRunning": cfg["include_running"],
+            "includeStaleRunning": cfg["include_stale"],
+            "staleMinutes": cfg["stale_minutes"],
         },
         "generatedAt": now_ms,
         "totals": totals,
@@ -880,10 +978,23 @@ class Handler(SimpleHTTPRequestHandler):
             days = int(q.get("days", ["7"])[0])
             self.json_response(query_daily_stats(days=days))
         elif path == "/api/reports/dashboard":
-            days = int(q.get("days", ["30"])[0])
+            days = int(q.get("days", ["1"])[0])
             agent_id = q.get("agentId", [None])[0]
             status = q.get("status", [None])[0]
-            self.json_response(query_reporting_dashboard(days=days, agent_id=agent_id, status=status))
+            scope = q.get("scope", ["all"])[0]
+            include_running = q.get("includeRunning", ["1"])[0] in ("1", "true", "yes")
+            include_stale = q.get("includeStaleRunning", ["1"])[0] in ("1", "true", "yes")
+            stale_minutes = int(q.get("staleMinutes", ["15"])[0])
+            self.json_response(query_reporting_dashboard(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes))
+        elif path == "/api/metrics/summary":
+            days = int(q.get("days", ["1"])[0])
+            agent_id = q.get("agentId", [None])[0]
+            status = q.get("status", [None])[0]
+            scope = q.get("scope", ["all"])[0]
+            include_running = q.get("includeRunning", ["1"])[0] in ("1", "true", "yes")
+            include_stale = q.get("includeStaleRunning", ["1"])[0] in ("1", "true", "yes")
+            stale_minutes = int(q.get("staleMinutes", ["15"])[0])
+            self.json_response(query_metric_summary(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes))
         elif path == "/api/runs":
             limit = int(q.get("limit", ["200"])[0])
             offset = int(q.get("offset", ["0"])[0])
