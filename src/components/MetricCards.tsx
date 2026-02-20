@@ -5,14 +5,6 @@ type Props = { runs: Run[] }
 
 const fmtTokens = (n: number) => n.toLocaleString()
 
-const tones: Record<string, string> = {
-  running: 'border-l-[var(--green)]',
-  quiet: 'border-l-[var(--amber)]',
-  stalled: 'border-l-[var(--orange)]',
-  dead: 'border-l-[var(--red)]',
-  total: 'border-l-[var(--blue)]',
-}
-
 export function MetricCards({ runs }: Props) {
   const counts = {
     running: runs.filter((r) => runState(r) === 'running').length,
@@ -34,37 +26,37 @@ export function MetricCards({ runs }: Props) {
   )
 
   const cards = [
-    { label: 'Running', value: counts.running, tone: 'running' },
-    { label: 'Quiet', value: counts.quiet, tone: 'quiet' },
-    { label: 'Stalled', value: counts.stalled, tone: 'stalled' },
-    { label: 'Dead', value: counts.dead, tone: 'dead' },
-    { label: 'Total', value: counts.total, tone: 'total' },
+    { label: 'Running', value: counts.running },
+    { label: 'Quiet', value: counts.quiet },
+    { label: 'Stalled', value: counts.stalled },
+    { label: 'Dead', value: counts.dead },
+    { label: 'Total', value: counts.total },
   ]
 
   return (
     <>
       <div className="mb-3 grid grid-cols-5 gap-3 max-lg:grid-cols-2">
         {cards.map((c) => (
-          <div className={`rounded-lg border border-l-[3px] border-[var(--border)] bg-[var(--surface)] p-4 ${tones[c.tone]}`} key={c.label}>
-            <div className="text-[0.7rem] uppercase tracking-[0.08em] text-[var(--text-3)]">{c.label}</div>
-            <div className="mt-1 font-mono text-[1.35rem] font-bold">{c.value}</div>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/95 p-4" key={c.label}>
+            <div className="text-[0.68rem] uppercase tracking-[0.07em] text-[var(--text-3)]">{c.label}</div>
+            <div className="mt-1 font-mono text-[1.3rem] font-semibold text-[var(--text)]">{c.value}</div>
           </div>
         ))}
       </div>
 
       <div className="mb-6 grid grid-cols-3 gap-3 max-lg:grid-cols-1">
-        <div className={`rounded-lg border border-l-[3px] border-[var(--border)] bg-[var(--surface)] p-4 ${tones.total}`}>
-          <div className="text-[0.7rem] uppercase tracking-[0.08em] text-[var(--text-3)]">Window Input Tokens</div>
-          <div className="mt-1 font-mono text-[1.35rem] font-bold">{fmtTokens(tokens.input)}</div>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/95 p-4">
+          <div className="text-[0.68rem] uppercase tracking-[0.07em] text-[var(--text-3)]">Window Input Tokens</div>
+          <div className="mt-1 font-mono text-[1.3rem] font-semibold text-[var(--text)]">{fmtTokens(tokens.input)}</div>
         </div>
-        <div className={`rounded-lg border border-l-[3px] border-[var(--border)] bg-[var(--surface)] p-4 ${tones.total}`}>
-          <div className="text-[0.7rem] uppercase tracking-[0.08em] text-[var(--text-3)]">Window Output Tokens</div>
-          <div className="mt-1 font-mono text-[1.35rem] font-bold">{fmtTokens(tokens.output)}</div>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/95 p-4">
+          <div className="text-[0.68rem] uppercase tracking-[0.07em] text-[var(--text-3)]">Window Output Tokens</div>
+          <div className="mt-1 font-mono text-[1.3rem] font-semibold text-[var(--text)]">{fmtTokens(tokens.output)}</div>
         </div>
-        <div className={`rounded-lg border border-l-[3px] border-[var(--border)] bg-[var(--surface)] p-4 ${tones.total}`}>
-          <div className="text-[0.7rem] uppercase tracking-[0.08em] text-[var(--text-3)]">Window Total Tokens</div>
-          <div className="mt-1 font-mono text-[1.35rem] font-bold">{fmtTokens(tokens.total)}</div>
-          <div className="mt-1 font-mono text-[0.65rem] text-[var(--text-3)]">{tokens.withData} / {runs.length} runs reporting tokens</div>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/95 p-4">
+          <div className="text-[0.68rem] uppercase tracking-[0.07em] text-[var(--text-3)]">Window Total Tokens</div>
+          <div className="mt-1 font-mono text-[1.3rem] font-semibold text-[var(--text)]">{fmtTokens(tokens.total)}</div>
+          <div className="mt-1.5 font-mono text-[0.64rem] text-[var(--text-3)]">{tokens.withData} / {runs.length} runs reporting tokens</div>
         </div>
       </div>
     </>
