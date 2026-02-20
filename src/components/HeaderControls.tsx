@@ -21,13 +21,13 @@ export function HeaderControls(props: Props) {
       </div>
       <div className="topbar-right">
         <div className="header-controls-group">
-          <div className="view-toggle">
-            <button className={props.laneMode === 'list' ? 'active' : ''} onClick={() => props.setLaneMode('list')}>List</button>
-            <button className={props.laneMode === 'lanes' ? 'active' : ''} onClick={() => props.setLaneMode('lanes')}>Lanes</button>
+          <div className="view-toggle" role="tablist" aria-label="View mode toggle">
+            <button className={`control-btn ${props.laneMode === 'list' ? 'active' : ''}`} onClick={() => props.setLaneMode('list')}>List</button>
+            <button className={`control-btn ${props.laneMode === 'lanes' ? 'active' : ''}`} onClick={() => props.setLaneMode('lanes')}>Lanes</button>
           </div>
           <div className="refresh-controls">
             <span className="refresh-label">Auto</span>
-            <select value={props.interval} onChange={(e) => props.setIntervalSec(Number(e.target.value))}>
+            <select className="control-select" value={props.interval} onChange={(e) => props.setIntervalSec(Number(e.target.value))}>
               <option value={0}>manual</option><option value={5}>5s</option><option value={10}>10s</option><option value={30}>30s</option>
             </select>
           </div>
