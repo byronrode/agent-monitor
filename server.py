@@ -444,6 +444,75 @@ def query_runs(limit=200, offset=0, agent_id=None, status=None):
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
+def query_daily_stats(days=7):
+    sync_runs_to_db()
+    days = max(1, min(int(days or 7), 180))
+    now_ms = int(time.time() * 1000)
+    cutoff = now_ms - days * 24 * 60 * 60 * 1000
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT
+                DATE(started_at / 1000, 'unixepoch', 'localtime') AS day,
+                COALESCE(agent_id, 'unknown') AS agent_id,
+                COUNT(*) AS run_count,
+                SUM(COALESCE(runtime_ms,
+                    CASE
+                        WHEN ended_at IS NOT NULL AND started_at IS NOT NULL AND ended_at >= started_at
+                            THEN (ended_at - started_at)
+                        ELSE 0
+                    END
+                )) AS runtime_ms
+            FROM run_history
+            WHERE started_at IS NOT NULL AND started_at >= ?
+            GROUP BY day, agent_id
+            ORDER BY day DESC, agent_id ASC
+            """,
+            (cutoff,),
+        ).fetchall()
+
+    daily_map = {}
+    agent_totals = {}
+
+    for row in rows:
+        day = row["day"] or "unknown"
+        agent_id = row["agent_id"] or "unknown"
+        run_count = int(row["run_count"] or 0)
+        runtime_ms = int(row["runtime_ms"] or 0)
+
+        if day not in daily_map:
+            daily_map[day] = {"date": day, "runtimeMs": 0, "runCount": 0, "agents": {}}
+
+        daily_map[day]["runtimeMs"] += runtime_ms
+        daily_map[day]["runCount"] += run_count
+        daily_map[day]["agents"][agent_id] = {
+            "runtimeMs": runtime_ms,
+            "runCount": run_count,
+        }
+
+        if agent_id not in agent_totals:
+            agent_totals[agent_id] = {"runtimeMs": 0, "runCount": 0}
+        agent_totals[agent_id]["runtimeMs"] += runtime_ms
+        agent_totals[agent_id]["runCount"] += run_count
+
+    daily = [daily_map[k] for k in sorted(daily_map.keys())]
+    totals = {
+        "runtimeMs": sum(d["runtimeMs"] for d in daily),
+        "runCount": sum(d["runCount"] for d in daily),
+        "daysWithData": len(daily),
+    }
+
+    return {
+        "windowDays": days,
+        "generatedAt": now_ms,
+        "totals": totals,
+        "daily": daily,
+        "agents": agent_totals,
+    }
+
+
 def get_run_detail(run_id):
     sync_runs_to_db()
     with sqlite3.connect(DB_PATH) as conn:
@@ -563,6 +632,9 @@ class Handler(SimpleHTTPRequestHandler):
 
         if path == "/api/agents":
             self.json_response(get_configured_agents())
+        elif path == "/api/stats/daily":
+            days = int(q.get("days", ["7"])[0])
+            self.json_response(query_daily_stats(days=days))
         elif path == "/api/runs":
             limit = int(q.get("limit", ["200"])[0])
             offset = int(q.get("offset", ["0"])[0])

@@ -626,8 +626,55 @@
   .lane-card .lc-label { font-weight: 600; font-size: 0.8rem; }
   .lane-card .lc-task { font-size: 0.75rem; color: var(--text-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .lane-card .lc-bottom { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem; font-family: var(--mono); font-size: 0.65rem; color: var(--text-3); }
+
+  .page-nav {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.7rem 2rem 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .page-link {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    border-radius: 7px;
+    padding: 0.45rem 0.8rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .page-link.active { color: var(--text); border-color: var(--blue); background: var(--blue-bg); }
+
+  .daily-page { max-width: 1200px; margin: 0 auto; }
+  .daily-table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: auto;
+  }
+  .daily-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    min-width: 640px;
+  }
+  .daily-table th,
+  .daily-table td {
+    padding: 0.65rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .daily-table th { color: var(--text-3); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .daily-table td.num { font-family: var(--mono); }
+
   /* ── Mobile ── */
   @media (max-width: 767px) {
+    .page-nav { padding: 0.55rem 1rem 0; overflow-x: auto; }
+    .page-link { white-space: nowrap; }
+
     /* Stack layout vertically */
     .layout { flex-direction: column; min-height: auto; }
 
@@ -823,7 +870,12 @@
   </div>
 </div>
 
-<div class="layout">
+<div class="page-nav">
+  <button class="page-link active" id="pageMonitor" onclick="setPage('monitor')">Monitor</button>
+  <button class="page-link" id="pageDaily" onclick="setPage('daily')">Daily Stats</button>
+</div>
+
+<div class="layout" id="monitorLayout">
   <div class="sidebar">
     <div class="sidebar-title">Agents</div>
     <div id="agentList"></div>
@@ -866,6 +918,26 @@
   </div>
 </div>
 
+<div class="main daily-page" id="dailyPage" style="display:none;">
+  <div class="filters" style="margin-bottom:1rem;">
+    <div class="filter-field">
+      <label class="filter-label" for="dailyWindow">Date window</label>
+      <select id="dailyWindow">
+        <option value="7" selected>last 7 days</option>
+        <option value="14">last 14 days</option>
+        <option value="30">last 30 days</option>
+        <option value="90">last 90 days</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label class="filter-label">Actions</label>
+      <button class="btn" onclick="refreshDailyStats()">Reload daily stats</button>
+    </div>
+  </div>
+  <div class="stats" id="dailyStatsSummary"></div>
+  <div id="dailyStatsContent"></div>
+</div>
+
 <script>
 let runs = [];
 let agents = [];
@@ -878,6 +950,9 @@ let refreshTimer = null;
 let expandedRuns = {};
 let runsTotal = 0;
 let lastError = '';
+let activePage = 'monitor';
+let dailyWindowDays = 7;
+let dailyStats = null;
 const PAGE_SIZE = 200;
 const STORAGE_KEY = 'agent-monitor-ui-v1';
 
@@ -955,6 +1030,9 @@ async function fetchRunDetail(runId) {
   return fetchJsonWithFallback(`/api/runs/${runId}`);
 }
 
+async function fetchDailyStats(days = dailyWindowDays) {
+  return fetchJsonWithFallback(`/api/stats/daily?days=${encodeURIComponent(days)}`);
+}
 
 function fmtNum(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return '-';
@@ -977,6 +1055,8 @@ function loadState() {
     if (typeof st.statusFilter === 'string') statusFilter = st.statusFilter;
     if (typeof st.searchQuery === 'string') searchQuery = st.searchQuery;
     if (Number.isFinite(st.timeWindowHours)) timeWindowHours = st.timeWindowHours;
+    if (st.activePage === 'monitor' || st.activePage === 'daily') activePage = st.activePage;
+    if (Number.isFinite(st.dailyWindowDays)) dailyWindowDays = st.dailyWindowDays;
     if (Number.isFinite(st.refreshInterval)) {
       const sel = document.getElementById('refreshInterval');
       if (sel) sel.value = String(st.refreshInterval);
@@ -993,6 +1073,8 @@ function saveState() {
       statusFilter,
       searchQuery,
       timeWindowHours,
+      activePage,
+      dailyWindowDays,
       refreshInterval
     }));
   } catch (_) {}
@@ -1057,6 +1139,50 @@ function renderStats() {
     <div class="stat"><div class="label">Total Runtime</div><div class="value">${formatMs(totalRuntime)}</div></div>
   `;
   renderTokenDashboard(filtered);
+}
+
+function renderDailyStats() {
+  const summary = document.getElementById('dailyStatsSummary');
+  const content = document.getElementById('dailyStatsContent');
+  if (!dailyStats || !Array.isArray(dailyStats.daily) || dailyStats.daily.length === 0) {
+    summary.innerHTML = '';
+    content.innerHTML = '<div class="empty">No daily runtime data in this window yet.</div>';
+    return;
+  }
+
+  const totals = dailyStats.totals || {};
+  const agents = Object.keys(dailyStats.agents || {}).sort();
+
+  summary.innerHTML = `
+    <div class="stat"><div class="label">Days with data</div><div class="value">${fmtNum(totals.daysWithData || 0)}</div></div>
+    <div class="stat"><div class="label">Runs (window)</div><div class="value">${fmtNum(totals.runCount || 0)}</div></div>
+    <div class="stat"><div class="label">Runtime (window)</div><div class="value">${formatMs(totals.runtimeMs || 0)}</div></div>
+  `;
+
+  const rows = dailyStats.daily.slice().reverse().map(day => {
+    const agentBreakdown = agents.map(agentId => {
+      const a = day.agents?.[agentId] || { runCount: 0, runtimeMs: 0 };
+      return `<div>${esc(agentId)}: ${fmtNum(a.runCount)} runs • ${formatMs(a.runtimeMs || 0)}</div>`;
+    }).join('');
+
+    return `<tr>
+      <td>${esc(day.date)}</td>
+      <td class="num">${fmtNum(day.runCount || 0)}</td>
+      <td class="num">${formatMs(day.runtimeMs || 0)}</td>
+      <td>${agentBreakdown || '-'}</td>
+    </tr>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="daily-table-wrap">
+      <table class="daily-table">
+        <thead>
+          <tr><th>Date</th><th>Run Count</th><th>Total Runtime</th><th>By Agent</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderAgentSidebar() {
@@ -1323,14 +1449,29 @@ function setStatus(message = '', kind = 'info') {
 }
 
 function render() {
-  renderStats();
-  renderAgentSidebar();
-  if (currentView === 'list') renderListView();
-  else renderLanesView();
+  document.getElementById('pageMonitor').classList.toggle('active', activePage === 'monitor');
+  document.getElementById('pageDaily').classList.toggle('active', activePage === 'daily');
+  document.getElementById('monitorLayout').style.display = activePage === 'monitor' ? 'flex' : 'none';
+  document.getElementById('dailyPage').style.display = activePage === 'daily' ? 'block' : 'none';
+
+  if (activePage === 'monitor') {
+    renderStats();
+    renderAgentSidebar();
+    if (currentView === 'list') renderListView();
+    else renderLanesView();
+  } else {
+    renderDailyStats();
+  }
   saveState();
 }
 
 // Actions
+function setPage(page) {
+  activePage = page === 'daily' ? 'daily' : 'monitor';
+  render();
+  if (activePage === 'daily' && !dailyStats) refreshDailyStats();
+}
+
 function filterAgent(id) {
   activeAgent = id;
   render();
@@ -1363,6 +1504,9 @@ async function refresh() {
     setStatus('');
     document.getElementById('lastUpdate').textContent = `updated ${new Date().toLocaleTimeString()} • showing ${runs.length}/${runsTotal}`;
     render();
+    if (activePage === 'daily') {
+      await refreshDailyStats();
+    }
     if (runs.length === 0) {
       setStatus('No runs found yet. Waiting for agent activity…', 'info');
     }
@@ -1378,6 +1522,19 @@ async function refresh() {
   } finally {
     btn.disabled = false;
     btn.textContent = '↻ Refresh';
+  }
+}
+
+async function refreshDailyStats() {
+  try {
+    dailyStats = await fetchDailyStats(dailyWindowDays);
+    if (activePage === 'daily') renderDailyStats();
+  } catch (e) {
+    console.error('Daily stats failed:', e);
+    if (activePage === 'daily') {
+      document.getElementById('dailyStatsSummary').innerHTML = '';
+      document.getElementById('dailyStatsContent').innerHTML = `<div class="empty">Unable to load daily stats: ${esc(e.message || e)}</div>`;
+    }
   }
 }
 
@@ -1410,13 +1567,21 @@ loadState();
 document.getElementById('searchInput').value = searchQuery;
 document.getElementById('statusFilter').value = statusFilter;
 document.getElementById('timeWindow').value = String(timeWindowHours);
+document.getElementById('dailyWindow').value = String(dailyWindowDays);
 document.getElementById('viewList').classList.toggle('active', currentView === 'list');
 document.getElementById('viewLanes').classList.toggle('active', currentView === 'lanes');
 document.getElementById('searchInput').addEventListener('input', (e) => { searchQuery = e.target.value.trim(); render(); });
 document.getElementById('statusFilter').addEventListener('change', (e) => { statusFilter = e.target.value; render(); });
 document.getElementById('timeWindow').addEventListener('change', (e) => { timeWindowHours = parseInt(e.target.value, 10) || 0; render(); });
+document.getElementById('dailyWindow').addEventListener('change', async (e) => {
+  dailyWindowDays = parseInt(e.target.value, 10) || 7;
+  await refreshDailyStats();
+  render();
+});
 setStatus('Loading runs…', 'info');
+render();
 refresh();
+refreshDailyStats();
 setRefreshInterval();
 </script>
 </body>
