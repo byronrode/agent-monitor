@@ -59,33 +59,35 @@ export function ReportingChart({ data, period, onPeriodChange }: { data?: Report
           ))}
         </div>
 
-        <div className="relative flex flex-col gap-2" onMouseLeave={() => setHover(null)}>
-          {bars.map((d) => {
-            let accum = 0
-            const total = d.agents.filter((x) => !hidden[x.agentId]).reduce((a, x) => a + x.totalTokens, 0)
-            return (
-              <div key={d.period} className="grid grid-cols-[90px_1fr_88px] items-center gap-2">
-                <div className="font-mono text-[0.72rem] text-[var(--text-2)]">{d.period}</div>
-                <div className="relative h-5 overflow-hidden rounded border border-[var(--border)] bg-[var(--surface-3)]">
-                  {d.agents.map((a, i) => {
-                    if (hidden[a.agentId]) return null
-                    const w = (a.totalTokens / max) * 100
-                    const left = (accum / max) * 100
-                    accum += a.totalTokens
-                    return (
-                      <div
-                        key={a.agentId}
-                        className="absolute inset-y-0"
-                        style={{ left: `${left}%`, width: `${w}%`, background: palette[i % palette.length] }}
-                        onMouseMove={(e) => setHover({ x: e.clientX + 8, y: e.clientY + 8, text: `${a.agentId} • ${formatNumber(a.totalTokens)} tokens • ${a.runCount} runs` })}
-                      />
-                    )
-                  })}
+        <div className="relative" onMouseLeave={() => setHover(null)}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(90px,1fr))] gap-3">
+            {bars.map((d) => {
+              let accum = 0
+              const total = d.agents.filter((x) => !hidden[x.agentId]).reduce((a, x) => a + x.totalTokens, 0)
+              return (
+                <div key={d.period} className="flex flex-col items-center gap-2">
+                  <div className="font-mono text-[0.68rem] text-[var(--text-2)]">{formatNumber(total)}</div>
+                  <div className="relative h-32 w-full max-w-[84px] overflow-hidden rounded border border-[var(--border)] bg-[var(--surface-3)]">
+                    {d.agents.map((a, i) => {
+                      if (hidden[a.agentId]) return null
+                      const h = (a.totalTokens / max) * 100
+                      const bottom = (accum / max) * 100
+                      accum += a.totalTokens
+                      return (
+                        <div
+                          key={a.agentId}
+                          className="absolute inset-x-0"
+                          style={{ bottom: `${bottom}%`, height: `${h}%`, background: palette[i % palette.length] }}
+                          onMouseMove={(e) => setHover({ x: e.clientX + 8, y: e.clientY + 8, text: `${a.agentId} • ${formatNumber(a.totalTokens)} tokens • ${a.runCount} runs` })}
+                        />
+                      )
+                    })}
+                  </div>
+                  <div className="font-mono text-[0.72rem] text-[var(--text-2)]">{d.period}</div>
                 </div>
-                <div className="font-mono text-[0.72rem] text-[var(--text-2)]">{formatNumber(total)}</div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
           {hover ? <div className="fixed z-[210] rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-1 font-mono text-[0.7rem]" style={{ left: hover.x, top: hover.y }}>{hover.text}</div> : null}
         </div>
       </div>
