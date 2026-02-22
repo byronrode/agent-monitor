@@ -1,26 +1,38 @@
 import { useMemo, useState } from 'react'
 import type { Reporting, ReportingAgentUsage } from '../lib/types'
+import type { DateRange, Period } from '../lib/reporting'
+import { stackedData, todayYmd } from '../lib/reporting'
 
 const palette = ['#60a5fa', '#34d399', '#c084fc', '#f59e0b', '#ef4444', '#14b8a6', '#f97316', '#eab308', '#818cf8', '#22d3ee']
 
-type Period = 'daily' | 'weekly' | 'monthly'
-
 const formatNumber = (n: number) => new Intl.NumberFormat().format(Math.round(n || 0))
-
-function stackedData(data?: Reporting) {
-  return data?.series.usageStacked?.items ?? []
-}
 
 function valueForAgent(agent: ReportingAgentUsage, mode: 'tokens' | 'runs') {
   return mode === 'tokens' ? agent.totalTokens : agent.runCount
 }
 
-export function ReportingChart({ data, period, onPeriodChange }: { data?: Reporting; period: Period; onPeriodChange: (p: Period) => void }) {
+export function ReportingChart({
+  data,
+  period,
+  onPeriodChange,
+  range,
+  onRangeChange,
+  onPrevWeek,
+  onNextWeek,
+}: {
+  data?: Reporting
+  period: Period
+  onPeriodChange: (p: Period) => void
+  range: DateRange
+  onRangeChange: (r: DateRange) => void
+  onPrevWeek: () => void
+  onNextWeek: () => void
+}) {
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
   const [leaderboardMode, setLeaderboardMode] = useState<'tokens' | 'runs'>('tokens')
 
-  const bars = useMemo(() => stackedData(data), [data])
+  const bars = useMemo(() => stackedData(data, period, range), [data, period, range])
   const agentIds = useMemo(() => {
     const ids = new Set<string>()
     bars.forEach((b) => b.agents.forEach((a) => ids.add(a.agentId)))
@@ -48,6 +60,25 @@ export function ReportingChart({ data, period, onPeriodChange }: { data?: Report
               <button key={p} className={`h-8 rounded-md border px-3 font-mono text-[0.7rem] ${period === p ? 'border-[var(--accent-active-border)] bg-[var(--accent-active-bg)] text-[var(--accent-active-text)]' : 'border-transparent text-[var(--text-3)]'}`} onClick={() => onPeriodChange(p)}>{p}</button>
             ))}
           </div>
+        </div>
+
+        <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto] md:items-end">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[0.65rem] uppercase tracking-[0.08em] text-[var(--text-3)]">
+              Start date
+              <input type="date" max={todayYmd()} value={range.start} onChange={(e) => onRangeChange({ ...range, start: e.target.value })} className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 font-mono text-[0.75rem] text-[var(--text)]" />
+            </label>
+            <label className="flex flex-col gap-1 text-[0.65rem] uppercase tracking-[0.08em] text-[var(--text-3)]">
+              End date
+              <input type="date" max={todayYmd()} value={range.end} onChange={(e) => onRangeChange({ ...range, end: e.target.value })} className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 font-mono text-[0.75rem] text-[var(--text)]" />
+            </label>
+          </div>
+          {period === 'weekly' ? (
+            <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5">
+              <button className="h-8 rounded-md border border-transparent px-3 font-mono text-[0.7rem] text-[var(--text-2)] hover:border-[var(--border)]" onClick={onPrevWeek}>← prev week</button>
+              <button className="h-8 rounded-md border border-transparent px-3 font-mono text-[0.7rem] text-[var(--text-2)] hover:border-[var(--border)]" onClick={onNextWeek}>next week →</button>
+            </div>
+          ) : null}
         </div>
 
         <div className="mb-3 flex flex-wrap gap-1.5">
