@@ -27,6 +27,7 @@ import os
 import re
 import sqlite3
 import time
+from datetime import datetime
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -522,14 +523,39 @@ def query_daily_stats(days=7):
 
 
 
-def _build_scope_filters(days=1, agent_id=None, status=None, scope="completed", include_running=False, include_stale=False, stale_minutes=15):
+def _parse_ymd_to_ms(value, end_of_day=False):
+    if not value:
+        return None
+    try:
+        dt = datetime.strptime(value, "%Y-%m-%d")
+        base = int(time.mktime(dt.timetuple()) * 1000)
+        return base + (24 * 60 * 60 * 1000 - 1 if end_of_day else 0)
+    except Exception:
+        return None
+
+
+def _build_scope_filters(days=1, agent_id=None, status=None, scope="completed", include_running=False, include_stale=False, stale_minutes=15, start_date=None, end_date=None):
     days = max(1, min(int(days or 1), 730))
     now_ms = int(time.time() * 1000)
-    cutoff = now_ms - days * 24 * 60 * 60 * 1000
+    start_ms = _parse_ymd_to_ms(start_date, end_of_day=False)
+    end_ms = _parse_ymd_to_ms(end_date, end_of_day=True)
+
+    if end_ms is None:
+        end_ms = now_ms
+    else:
+        end_ms = min(end_ms, now_ms)
+
+    if start_ms is None:
+        start_ms = end_ms - days * 24 * 60 * 60 * 1000 + 1
+
+    if start_ms > end_ms:
+        start_ms = end_ms
+
+    days = max(1, int((end_ms - start_ms) / (24 * 60 * 60 * 1000)) + 1)
     stale_cutoff = now_ms - max(1, int(stale_minutes or 15)) * 60 * 1000
 
-    where = ["started_at IS NOT NULL", "started_at >= ?"]
-    args = [cutoff]
+    where = ["started_at IS NOT NULL", "started_at >= ?", "started_at <= ?"]
+    args = [start_ms, end_ms]
 
     if agent_id and agent_id != "all":
         where.append("agent_id = ?")
@@ -553,7 +579,8 @@ def _build_scope_filters(days=1, agent_id=None, status=None, scope="completed", 
     return {
         "days": days,
         "now_ms": now_ms,
-        "cutoff": cutoff,
+        "start_ms": start_ms,
+        "end_ms": end_ms,
         "where_sql": " AND ".join(where),
         "args": args,
         "scope": scope,
@@ -563,9 +590,9 @@ def _build_scope_filters(days=1, agent_id=None, status=None, scope="completed", 
     }
 
 
-def query_metric_summary(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15):
+def query_metric_summary(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15, start_date=None, end_date=None):
     sync_runs_to_db()
-    cfg = _build_scope_filters(days, agent_id, status, scope, include_running, include_stale, stale_minutes)
+    cfg = _build_scope_filters(days, agent_id, status, scope, include_running, include_stale, stale_minutes, start_date, end_date)
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
@@ -610,11 +637,13 @@ def query_metric_summary(days=1, agent_id=None, status=None, scope="all", includ
         },
     }
 
-def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15, period="daily", bucket_count=14):
+def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", include_running=True, include_stale=True, stale_minutes=15, period="daily", bucket_count=14, start_date=None, end_date=None):
     sync_runs_to_db()
-    cfg = _build_scope_filters(days, agent_id, status, scope, include_running, include_stale, stale_minutes)
+    cfg = _build_scope_filters(days, agent_id, status, scope, include_running, include_stale, stale_minutes, start_date, end_date)
     days = cfg["days"]
     now_ms = cfg["now_ms"]
+    start_ms = cfg["start_ms"]
+    end_ms = cfg["end_ms"]
     where_sql = cfg["where_sql"]
     args = cfg["args"]
 
@@ -858,8 +887,10 @@ def query_reporting_dashboard(days=1, agent_id=None, status=None, scope="all", i
     ]
 
     day_labels = []
-    for i in range(days - 1, -1, -1):
-        ts = now_ms - i * 24 * 60 * 60 * 1000
+    for i in range(days):
+        ts = start_ms + i * 24 * 60 * 60 * 1000
+        if ts > end_ms:
+            break
         day_labels.append(time.strftime("%Y-%m-%d", time.localtime(ts / 1000)))
 
     runtime_trend = [{"date": d, "runtimeMs": int(by_day.get(d, {}).get("runtimeMs", 0))} for d in day_labels]
@@ -1138,7 +1169,9 @@ class Handler(SimpleHTTPRequestHandler):
             include_running = q.get("includeRunning", ["1"])[0] in ("1", "true", "yes")
             include_stale = q.get("includeStaleRunning", ["1"])[0] in ("1", "true", "yes")
             stale_minutes = int(q.get("staleMinutes", ["15"])[0])
-            self.json_response(query_reporting_dashboard(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes, period=period, bucket_count=bucket_count))
+            start_date = q.get("startDate", [None])[0]
+            end_date = q.get("endDate", [None])[0]
+            self.json_response(query_reporting_dashboard(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes, period=period, bucket_count=bucket_count, start_date=start_date, end_date=end_date))
         elif path == "/api/metrics/summary":
             days = int(q.get("days", ["1"])[0])
             agent_id = q.get("agentId", [None])[0]
@@ -1147,7 +1180,9 @@ class Handler(SimpleHTTPRequestHandler):
             include_running = q.get("includeRunning", ["1"])[0] in ("1", "true", "yes")
             include_stale = q.get("includeStaleRunning", ["1"])[0] in ("1", "true", "yes")
             stale_minutes = int(q.get("staleMinutes", ["15"])[0])
-            self.json_response(query_metric_summary(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes))
+            start_date = q.get("startDate", [None])[0]
+            end_date = q.get("endDate", [None])[0]
+            self.json_response(query_metric_summary(days=days, agent_id=agent_id, status=status, scope=scope, include_running=include_running, include_stale=include_stale, stale_minutes=stale_minutes, start_date=start_date, end_date=end_date))
         elif path == "/api/runs":
             limit = int(q.get("limit", ["200"])[0])
             offset = int(q.get("offset", ["0"])[0])
